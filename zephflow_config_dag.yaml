@@ -1,0 +1,237 @@
+jobContext:
+  otherProperties: { }
+  metricTags:
+    env: "default_env"
+    service: "default_service"
+  dlqConfig: null
+
+metadata:
+  name: Zephflow_kafka_integration
+  exportedAt: '2025-12-15T10:28:05.426Z'
+  version: 1.0.0
+dag:
+  - id: node_1765791224111
+    commandName: kafkasource
+    config:
+      broker: 10.10.10.3:9092
+      topic: secops-zepflow-ocsf-topic
+      groupId: qai-secops-dev-group
+      encodingType: JSON_OBJECT
+      properties: {}
+    outputs:
+      - node_1765794002545
+  - id: node_1765794002545
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.event_type == "http" => case($.http.http_method == "GET" => 3, $.http.http_method == "POST" => 6, $.http.http_method == "PUT" => 7, $.http.http_method == "DELETE" => 2, $.http.http_method == "HEAD" => 4, $.http.http_method == "OPTIONS" => 5, $.http.http_method == "PATCH" => 9, $.http.http_method == "TRACE" => 8, $.http.http_method == "CONNECT" => 1, _ => 99),
+            _ => 0
+          ),
+          activity_name=case(
+            $.event_type == "http" => case($.http.http_method == "GET" => 'Get', $.http.http_method == "POST" => 'Post', $.http.http_method == "PUT" => 'Put', $.http.http_method == "DELETE" => 'Delete', $.http.http_method == "HEAD" => 'Head', $.http.http_method == "OPTIONS" => 'Options', $.http.http_method == "PATCH" => 'Patch', $.http.http_method == "TRACE" => 'Trace', $.http.http_method == "CONNECT" => 'Connect', _ => 'Other'),
+            _ => 'Unknown'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='HTTP Activity',
+          class_uid=4002,
+          connection_info=dict(
+            boundary=case(
+              str_contains($.src_ip, '192.168.') and str_contains($.dest_ip, '192.168.') => 'Internal',
+              str_contains($.src_ip, '10.') and str_contains($.dest_ip, '192.168.') => 'Internal',
+              str_contains($.src_ip, '192.168.') and not str_contains($.dest_ip, '192.168.') and not str_contains($.dest_ip, '10.') and not str_contains($.dest_ip, '172.') => 'External',
+              _ => 'Unknown'
+            ),
+            boundary_id=case(
+              str_contains($.src_ip, "192.168.") and str_contains($.dest_ip, "192.168.") => 2,
+              str_contains($.src_ip, "10.") and str_contains($.dest_ip, "192.168.") => 2,
+              str_contains($.src_ip, "192.168.") and not str_contains($.dest_ip, "192.168.") and not str_contains($.dest_ip, "10.") and not str_contains($.dest_ip, "172.") => 3,
+              _ => 0
+            ),
+            direction=case(
+              $.event_type == 'http' => 'Outbound',
+              $.event_type == 'dhcp' => case($.dhcp.type == 'request' => 'Outbound', _ => 'Inbound'),
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.event_type == "http" => 2,
+              $.event_type == "dhcp" => case($.dhcp.type == "request" => 2, _ => 1),
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              lower($.proto) == "icmpv6" => 58,
+              _ => 0
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            hostname=case(
+              $.event_type == 'http' and $.http.hostname != null => $.http.hostname,
+              _ => null
+            ),
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          http_request=dict(
+            http_method=case($.http.http_method != null => upper($.http.http_method), _ => null),
+            length=$.http.length,
+            uid=to_str($.tx_id),
+            url=dict(
+              hostname=$.http.hostname,
+              path=$.http.url,
+              scheme=case(
+                $.http.protocol != null => lower(str_split($.http.protocol, "/")[0]),
+                _ => "http"
+              ),
+              url_string=case(
+                $.http.hostname != null and $.http.url != null => case(
+            str_contains($.http.url, "://") => $.http.url,
+            _ => "http://" + $.http.hostname + $.http.url
+          ),
+                _ => null
+              )
+            ),
+            user_agent=$.http.http_user_agent,
+            version=case(
+              $.http.protocol != null and str_contains($.http.protocol, "/") => str_split($.http.protocol, "/")[1],
+              _ => null
+            )
+          ),
+          http_response=dict(
+            code=$.http.status,
+            content_type=$.http.http_content_type,
+            length=$.http.length,
+            status=case(
+              $.http.status >= 200 and $.http.status < 300 => "OK",
+              $.http.status >= 300 and $.http.status < 400 => "Redirect",
+              $.http.status >= 400 and $.http.status < 500 => "Client Error",
+              $.http.status >= 500 => "Server Error",
+              _ => "Unknown"
+            )
+          ),
+          message=case(
+            $.event_type == "http" => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " returned status " + to_str($.http.status),
+            $.event_type == "dhcp" => "DHCP " + $.dhcp.dhcp_type + " from " + $.dhcp.client_mac + " for IP " + $.dhcp.client_ip,
+            _ => "Suricata event: " + $.event_type
+          ),
+          metadata=dict(
+            log_name="eve.json",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity_id=0,
+          src_endpoint=dict(
+            interface_name=$.in_iface,
+            ip=$.src_ip,
+            mac=case(
+              $.event_type == 'dhcp' and $.dhcp.client_mac != null => $.dhcp.client_mac,
+              _ => null
+            ),
+            port=$.src_port
+          ),
+          status=case(
+            $.event_type == 'http' => case(
+            $.http.status >= 200 and $.http.status < 300 => 'Success',
+            $.http.status >= 400 => 'Failure',
+            _ => 'Other'
+          ),
+            $.event_type == 'dhcp' => case(
+            $.dhcp.type == 'request' or $.dhcp.dhcp_type == 'request' => 'Other',
+            _ => 'Other'
+          ),
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.event_type == "http" => to_str($.http.status),
+            $.event_type == "dhcp" => case(
+            $.dhcp.type != null => $.dhcp.type,
+            $.dhcp.dhcp_type != null => $.dhcp.dhcp_type,
+            _ => null
+          ),
+            _ => null
+          ),
+          status_detail=case(
+            $.event_type == "http" => case(
+            $.http.status >= 200 and $.http.status < 300 => "HTTP " + to_str($.http.status) + " - " + $.http.http_content_type,
+            $.http.status >= 300 and $.http.status < 400 => "HTTP " + to_str($.http.status) + " redirect",
+            $.http.status >= 400 and $.http.status < 500 => "HTTP " + to_str($.http.status) + " client error",
+            $.http.status >= 500 => "HTTP " + to_str($.http.status) + " server error",
+            _ => "HTTP status " + to_str($.http.status)
+          ),
+            $.event_type == "dhcp" => "DHCP " + $.dhcp.dhcp_type + " - client MAC: " + $.dhcp.client_mac + ", client IP: " + $.dhcp.client_ip + ", assigned IP: " + $.dhcp.assigned_ip,
+            _ => $.pkt_src
+          ),
+          status_id=case(
+            $.event_type == "http" => case(
+            $.http.status >= 200 and $.http.status < 300 => 1,
+            $.http.status >= 400 => 2,
+            _ => 99
+          ),
+            $.event_type == "dhcp" => case(
+            $.dhcp.type == "request" or $.dhcp.dhcp_type == "request" => 99,
+            _ => 99
+          ),
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=case(
+            str_contains($.timestamp, "+") => parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2)),
+            str_contains($.timestamp, "-") => -(parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2))),
+            _ => 0
+          ),
+          traffic=dict(
+            bytes=case(
+              $.event_type == "http" and $.http.length != null => $.http.length,
+              _ => null
+            ),
+            bytes_out=case(
+              $.event_type == "http" and $.http.length != null => $.http.length,
+              _ => null
+            )
+          ),
+          type_name=case(
+            $.event_type == "http" => case($.http.http_method == "GET" => 'HTTP Activity: Get', $.http.http_method == "POST" => 'HTTP Activity: Post', $.http.http_method == "PUT" => 'HTTP Activity: Put', $.http.http_method == "DELETE" => 'HTTP Activity: Delete', $.http.http_method == "HEAD" => 'HTTP Activity: Head', $.http.http_method == "OPTIONS" => 'HTTP Activity: Options', $.http.http_method == "PATCH" => 'HTTP Activity: Patch', $.http.http_method == "TRACE" => 'HTTP Activity: Trace', $.http.http_method == "CONNECT" => 'HTTP Activity: Connect', _ => 'HTTP Activity: Other'),
+            _ => 'HTTP Activity: Unknown'
+          ),
+          type_uid=case(
+            $.event_type == "http" => case($.http.http_method == "GET" => 400203, $.http.http_method == "POST" => 400206, $.http.http_method == "PUT" => 400207, $.http.http_method == "DELETE" => 400202, $.http.http_method == "HEAD" => 400204, $.http.http_method == "OPTIONS" => 400205, $.http.http_method == "PATCH" => 400209, $.http.http_method == "TRACE" => 400208, $.http.http_method == "CONNECT" => 400201, _ => 400299),
+            _ => 400200
+          )
+        )
+    outputs:
+      - node_1765794247126
+  - id: node_1765794247126
+    commandName: kafkasink
+    config:
+      broker: 10.10.10.3:9092
+      topic: secops-stage1-topic
+      partitionKeyFieldExpressionStr: ''
+      encodingType: JSON_OBJECT
+      properties: {}
+    outputs: []
+nodePositions:
+  - id: node_1765791224111
+    x: 9691.533333333335
+    'y': 9636.599999999995
+    commandName: kafkasource
+  - id: node_1765794002545
+    x: 9690.533333333335
+    'y': 9800.599999999995
+    commandName: eval
+  - id: node_1765794247126
+    x: 9689.533333333335
+    'y': 9987.599999999995
+    commandName: kafkasink
