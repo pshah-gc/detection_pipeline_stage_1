@@ -1,0 +1,4449 @@
+jobContext:
+  otherProperties: { }
+  metricTags:
+    env: "default_env"
+    service: "default_service"
+  dlqConfig: null
+
+metadata:
+  name: Suricata workflow
+  exportedAt: '2025-12-17T13:35:58.183Z'
+  version: 1.0.0
+dag:
+  - id: node_1765877370141
+    commandName: kafkasource
+    config:
+      broker: 10.10.10.3:9092
+      topic: secops-zepflow-ocsf-topic
+      groupId: qai-secops-dev-group
+      encodingType: JSON_OBJECT
+      properties: {}
+    outputs:
+      - node_1765877385940
+      - node_1765972875555
+      - node_1765972916871
+      - node_1765974691380
+      - node_1765974700419
+      - node_1765974710894
+      - node_1765974721600
+      - node_1765974740876
+      - node_1765974777253
+      - node_1765974791781
+      - node_1765974797976
+      - node_1765974815928
+      - node_1765974819982
+      - node_1765974869175
+      - node_1765974874111
+      - node_1765975706280
+      - node_1765975734250
+      - node_1765975739186
+      - node_1765975746282
+      - node_1765975751988
+      - node_1765975757696
+      - node_1765975762497
+      - node_1765975773344
+      - node_1765975777664
+      - node_1765975787857
+      - node_1765975999657
+  - id: node_1765877385940
+    commandName: filter
+    config:
+      expression: $.event_type == "ike"
+    outputs:
+      - node_1765877399391
+    description: IKE
+  - id: node_1765877399391
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == false => 1,
+            $.event_type == "ike" => 99,
+            _ => 0
+          ),
+          activity_name=case(
+            $.event_type == 'ike' and $['ike.ikev1.encrypted_payloads'] == false => 'Open',
+            $.event_type == 'ike' => 'Other',
+            _ => 'Unknown'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Tunnel Activity',
+          class_uid=4014,
+          connection_info=case(
+            $.event_type == "ike" => dict(protocol_num=case($.proto == "TCP" => 6, $.proto == "UDP" => 17, _ => 0), protocol_name=$.proto),
+            _ => null
+          ),
+          device=dict(
+            ip=$.src_ip,
+            type='Other',
+            type_id=99
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $.event_type == "ike" => to_str($['ike.exchange_type_verbose']) + " IKE exchange detected: " + to_str($['ike.alg_enc']) + " encryption with " + to_str($['ike.alg_hash']) + " hash",
+            _ => "IKE event detected"
+          ),
+          metadata=dict(
+            event_code=$.event_type,
+            log_name="suricata",
+            log_provider="Suricata IDS/IPS",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          protocol_name=case(
+            $.event_type == "ike" => "IPSec",
+            _ => null
+          ),
+          session=dict(
+            is_remote=true,
+            is_vpn=case(
+              $.event_type == "ike" => true,
+              _ => false
+            ),
+            uid=to_str($.flow_id)
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.event_type == 'ike' and $['ike.ikev1.encrypted_payloads'] == false => 'Success',
+            $.event_type == 'ike' and $['ike.ikev1.encrypted_payloads'] == true => 'Other',
+            _ => 'Unknown'
+          ),
+          status_detail=case(
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == false => "IKE Phase 1 negotiation completed - Exchange Type: " + to_str($['ike.exchange_type_verbose']) + ", Encryption: " + to_str($['ike.alg_enc']) + ", Hash: " + to_str($['ike.alg_hash']) + ", Auth: " + to_str($['ike.alg_auth']) + ", DH Group: " + to_str($['ike.alg_dh']),
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == true => "IKE Phase 2 negotiation in progress - encrypted payloads detected",
+            $.event_type == "ike" => "IKE negotiation detected - Exchange Type: " + to_str($['ike.exchange_type_verbose']),
+            _ => null
+          ),
+          status_id=case(
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == false => 1,
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == true => 99,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          tls=case(
+            $.event_type == "ike" and $.ike != null and $.ike["alg_enc"] != null => dict(cipher=to_str($.ike["alg_enc"])),
+            _ => null
+          ),
+          traffic=case($.ike != null => dict(bytes_in=case($.ike.ikev1 != null and $.ike.ikev1.server != null and $.ike.ikev1.server.nonce_payload_length != null => parse_int($.ike.ikev1.server.nonce_payload_length), _ => null), bytes_out=case($.ike.ikev1 != null and $.ike.ikev1.client != null and $.ike.ikev1.client.nonce_payload_length != null => parse_int($.ike.ikev1.client.nonce_payload_length), _ => null)), _ => null),
+          type_name=case(
+            $.event_type == 'ike' and $['ike.ikev1.encrypted_payloads'] == false => 'Tunnel Activity: Open',
+            $.event_type == 'ike' => 'Tunnel Activity: Other',
+            _ => 'Tunnel Activity: Unknown'
+          ),
+          type_uid=case(
+            $.event_type == "ike" and $['ike.ikev1.encrypted_payloads'] == false => 401401,
+            $.event_type == "ike" => 401499,
+            _ => 401400
+          ),
+          unmapped=dict(
+            ike=$.ike,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: IKE eval
+  - id: node_1765972875555
+    commandName: filter
+    config:
+      expression: $.event_type == "modbus"
+    outputs:
+      - node_1765977543451
+    description: Modbus
+  - id: node_1765972916871
+    commandName: filter
+    config:
+      expression: $.event_type == "krb5"
+    outputs:
+      - node_1765977507321
+    description: KRB5
+  - id: node_1765974691380
+    commandName: filter
+    config:
+      expression: $.event_type == "fileinfo"
+    outputs:
+      - node_1765977126697
+    description: Fileinfo
+  - id: node_1765974700419
+    commandName: filter
+    config:
+      expression: $.event_type == "flow"
+    outputs:
+      - node_1765977202906
+    description: Flow
+  - id: node_1765974710894
+    commandName: filter
+    config:
+      expression: $.event_type == "ftp"
+    outputs:
+      - node_1765977247525
+    description: ftp
+  - id: node_1765974721600
+    commandName: filter
+    config:
+      expression: $.event_type == "ftp_data"
+    outputs:
+      - node_1765977319455
+    description: ftp_data
+  - id: node_1765974740876
+    commandName: filter
+    config:
+      expression: $.event_type == "http"
+    outputs:
+      - node_1765977359919
+    description: http
+  - id: node_1765974777253
+    commandName: filter
+    config:
+      expression: $.event_type == "http2"
+    outputs:
+      - node_1765977397823
+    description: http2
+  - id: node_1765974791781
+    commandName: filter
+    config:
+      expression: $.event_type == "dns"
+    outputs:
+      - node_1765977084729
+    description: DNS
+  - id: node_1765974797976
+    commandName: filter
+    config:
+      expression: $.event_type == "dhcp"
+    outputs:
+      - node_1765976890004
+    description: DHCP
+  - id: node_1765974815928
+    commandName: filter
+    config:
+      expression: $.event_type == "bittorrent_dht"
+    outputs:
+      - node_1765976825732
+    description: bittorrent-dht
+  - id: node_1765974819982
+    commandName: filter
+    config:
+      expression: $.event_type == "arp"
+    outputs:
+      - node_1765976784092
+    description: ARP
+  - id: node_1765974869175
+    commandName: filter
+    config:
+      expression: $.event_type == "anomaly"
+    outputs:
+      - node_1765975123723
+    description: Anomaly
+  - id: node_1765974874111
+    commandName: filter
+    config:
+      expression: $.event_type == "alert"
+    outputs:
+      - node_1765975012358
+    description: Alerts
+  - id: node_1765975012358
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=1,
+          activity_name=case(
+            $.alert.action == 'allowed' => 'Create',
+            $.alert.action == 'blocked' => 'Update',
+            $.alert.action == 'dropped' => 'Update',
+            _ => 'Other'
+          ),
+          category_name='Findings',
+          category_uid=2,
+          class_name='Detection Finding',
+          class_uid=2004,
+          confidence=case(
+            $.alert.metadata.signature_severity[0] == "Major" => 'High',
+            $.alert.metadata.signature_severity[0] == "Critical" => 'High',
+            $.alert.metadata.signature_severity[0] == "Minor" => 'Medium',
+            $.alert.metadata.signature_severity[0] == "Informational" => 'Low',
+            _ => 'Unknown'
+          ),
+          confidence_id=case(
+            $.alert.metadata.signature_severity[0] == "Major" => 3,
+            $.alert.metadata.signature_severity[0] == "Critical" => 3,
+            $.alert.metadata.signature_severity[0] == "Minor" => 2,
+            $.alert.metadata.signature_severity[0] == "Informational" => 1,
+            _ => 0
+          ),
+          count=1,
+          device=dict(
+            hostname=$.http.hostname,
+            ip=$.src_ip,
+            type="Unknown",
+            type_id=99
+          ),
+          duration=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ") - ts_str_to_epoch($.flow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          end_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          evidences=array(
+            dict(
+              connection_info=dict(
+                direction=case(
+                  $.direction == 'to_client' => 'Inbound',
+                  $.direction == 'to_server' => 'Outbound',
+                  _ => 'Unknown'
+                ),
+                direction_id=case(
+                  $.direction == 'to_client' => 1,
+                  $.direction == 'to_server' => 2,
+                  _ => 0
+                ),
+                protocol_name=lower($.proto)
+              ),
+              dst_endpoint=dict(
+                ip=$.dest_ip,
+                port=$.dest_port
+              ),
+              file=dict(
+                name=$.files[0].filename,
+                size=$.files[0].size
+              ),
+              http_request=dict(
+                http_method=$.http.http_method,
+                url=dict(
+                  hostname=$.http.hostname,
+                  port=$.http.http_port,
+                  url_string=$.http.url
+                ),
+                version=$.http.protocol
+              ),
+              http_response=dict(
+                code=$.http.status,
+                content_type=$.http.http_content_type,
+                length=$.http.length
+              ),
+              name=$.alert.signature,
+              src_endpoint=dict(
+                ip=$.src_ip,
+                port=$.src_port
+              ),
+              uid=to_str($.alert.signature_id)
+            )
+          ),
+          finding_info=dict(
+            created_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            desc=$.alert.signature,
+            first_seen_time=ts_str_to_epoch($.flow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            modified_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            product=dict(
+              name='Suricata',
+              vendor_name='Suricata'
+            ),
+            title=$.alert.signature,
+            types=array(
+              $.alert.category
+            ),
+            uid=to_str($.alert.signature_id)
+          ),
+          is_alert=true,
+          message=$.alert.signature,
+          metadata=dict(
+            event_code=to_str($.alert.signature_id),
+            log_name=$.pkt_src,
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              feature=dict(
+                name=$.event_type
+              ),
+              name='Suricata',
+              vendor_name='Suricata'
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          observables=arr_flatten(array(case($.src_ip != null => array(dict(name="src_endpoint.ip", type_id=2, value=$.src_ip, type="IP Address")), _ => array()), case($.dest_ip != null => array(dict(name="dest_ip", type_id=2, value=$.dest_ip)), _ => array()), case($.http.hostname != null => array(dict(name="hostname", type_id=1, value=$.http.hostname)), _ => array()), case($.http.url != null => array(dict(name="url", type_id=23, value=$.http.url)), _ => array()))),
+          resources=array(
+            dict(
+              hostname=$.http.hostname,
+              ip=$.dest_ip,
+              name=$.http.hostname,
+              role='Target',
+              role_id=1,
+              type='Network Resource',
+              uid=$.dest_ip
+            )
+          ),
+          severity=case(
+            $.alert.severity == 1 => 'High',
+            $.alert.severity == 2 => 'Medium',
+            $.alert.severity == 3 => 'Low',
+            _ => 'Other'
+          ),
+          severity_id=case(
+            $.alert.severity == 1 => 4,
+            $.alert.severity == 2 => 3,
+            $.alert.severity == 3 => 2,
+            _ => 99
+          ),
+          start_time=ts_str_to_epoch($.flow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          status=case(
+            $.alert.action == 'allowed' => 'New',
+            $.alert.action == 'blocked' => 'Resolved',
+            $.alert.action == 'dropped' => 'Resolved',
+            _ => 'Other'
+          ),
+          status_code=to_str($.http.status),
+          status_detail=$.alert.signature,
+          status_id=case(
+            $.alert.action == "allowed" => 1,
+            $.alert.action == "blocked" => 4,
+            $.alert.action == "dropped" => 4,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          type_name='Detection Finding: Create',
+          type_uid=200401,
+          unmapped=dict(
+            app_proto=$.app_proto,
+            ether=$.ether,
+            pcap_cnt=$.pcap_cnt,
+            tx_id=$.tx_id
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: Alert eval
+  - id: node_1765975123723
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=99,
+          activity_name='Other',
+          app_name=case(
+            $.anomaly != null and $.anomaly.app_proto != null => upper($.anomaly.app_proto),
+            _ => null
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.src_ip != null and $.dest_ip != null => 'Unknown',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.src_ip != null and $.dest_ip != null => 0,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              $.proto == "TCP" => 6,
+              $.proto == "UDP" => 17,
+              $.proto == "ICMP" => 1,
+              _ => null
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            mac=$.ether.dest_mac,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=true,
+          message=case(
+            $.anomaly != null => "Suricata anomaly detected: " + $.anomaly.event + " (type: " + $.anomaly.type + ", layer: " + $.anomaly.layer + ", protocol: " + $.anomaly.app_proto + ")",
+            _ => "Network event detected"
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          raw_data=to_str($),
+          severity=case(
+            $.anomaly != null => 'Medium',
+            _ => 'Other'
+          ),
+          severity_id=case(
+            $.anomaly != null => 3,
+            _ => 99
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            mac=$.ether.src_mac,
+            port=$.src_port
+          ),
+          status=case(
+            $.event_type == 'anomaly' => 'Failure',
+            _ => 'Other'
+          ),
+          status_code=case(
+            $.anomaly != null => $.anomaly.event,
+            _ => null
+          ),
+          status_detail=case(
+            $.anomaly != null => "Unable to match response to request for " + $.anomaly.app_proto + " protocol (TX ID: " + to_str($.tx_id) + ")",
+            _ => null
+          ),
+          status_id=case(
+            $.event_type == "anomaly" => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            $.event_type == 'anomaly' => 'Network Activity: Other',
+            _ => 'Network Activity: Unknown'
+          ),
+          type_uid=case(
+            $.event_type == "anomaly" => 400199,
+            _ => 400100
+          ),
+          unmapped=dict(
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: Anomaly Eval
+  - id: node_1765975706280
+    commandName: filter
+    config:
+      expression: $.event_type == "mqtt"
+    outputs:
+      - node_1765977585335
+    description: mqtt
+  - id: node_1765975734250
+    commandName: filter
+    config:
+      expression: $.event_type == "netflow"
+    outputs:
+      - node_1765977619817
+    description: netflow
+  - id: node_1765975739186
+    commandName: filter
+    config:
+      expression: $.event_type == "pgsql"
+    outputs:
+      - node_1765977657501
+    description: pgsql
+  - id: node_1765975746282
+    commandName: filter
+    config:
+      expression: $.event_type == "pop3"
+    outputs:
+      - node_1765977695706
+    description: pop3
+  - id: node_1765975751988
+    commandName: filter
+    config:
+      expression: $.event_type == "quic"
+    outputs:
+      - node_1765977734080
+    description: quic
+  - id: node_1765975757696
+    commandName: filter
+    config:
+      expression: $.event_type == "rdp"
+    outputs:
+      - node_1765977800817
+    description: RDP
+  - id: node_1765975762497
+    commandName: filter
+    config:
+      expression: $.event_type == "rfb"
+    outputs:
+      - node_1765977840490
+    description: RFB
+  - id: node_1765975773344
+    commandName: filter
+    config:
+      expression: $.event_type == "smb"
+    outputs:
+      - node_1765977913418
+    description: SMB
+  - id: node_1765975777664
+    commandName: filter
+    config:
+      expression: $.event_type == "ssh"
+    outputs:
+      - node_1765977931659
+    description: SSH
+  - id: node_1765975787857
+    commandName: filter
+    config:
+      expression: $.event_type == "tftp"
+    outputs:
+      - node_1765978018946
+    description: TFTP
+  - id: node_1765975999657
+    commandName: filter
+    config:
+      expression: $.event_type == "tls"
+    outputs:
+      - node_1765978051139
+    description: TLS
+  - id: node_1765976039342
+    commandName: kafkasink
+    config:
+      broker: 10.10.10.3:9092
+      topic: secops-stage1-topic
+      partitionKeyFieldExpressionStr: ''
+      encodingType: JSON_OBJECT
+      properties: {}
+    outputs: []
+  - id: node_1765976784092
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=99,
+          activity_name='Other',
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.pkt_src == 'stream (flow timeout)' => 'Unknown',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.pkt_src == "stream (flow timeout)" => 0,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            mac=$.arp.dest_mac,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=false,
+          message=case(
+            $.event_type == "arp" => "ARP " + $['arp.opcode'] + " from " + $['arp.src_ip'] + " (" + $['arp.src_mac'] + ") for " + $['arp.dest_ip'],
+            _ => $.event_type + " event"
+          ),
+          metadata=dict(
+            event_code=$.event_type,
+            log_name="suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          raw_data=to_str($),
+          src_endpoint=dict(
+            ip=$.arp.src_ip,
+            mac=$["arp"]["src_mac"]
+          ),
+          status=case(
+            $['arp.opcode'] == 'reply' => 'Success',
+            $['arp.opcode'] == 'request' => 'Other',
+            _ => 'Unknown'
+          ),
+          status_detail=case(
+            $.event_type == "arp" => $['arp.opcode'] + " - " + $['arp.hw_type'] + "/" + $['arp.proto_type'],
+            _ => null
+          ),
+          status_id=case(
+            $['arp.opcode'] == "reply" => 1,
+            $['arp.opcode'] == "request" => 99,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            $.event_type == 'arp' => 'Network Activity: Other',
+            _ => 'Network Activity: Unknown'
+          ),
+          type_uid=case(
+            $.event_type == "arp" => 400199,
+            _ => 400100
+          ),
+          unmapped=dict(
+            arp=$.arp,
+            pcap_cnt=$.pcap_cnt,
+            src_ip=$.src_ip,
+            src_port=$.src_port
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: ARP eval
+  - id: node_1765976825732
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          app_name=case(
+            $.bittorrent_dht.client_version != null => "BitTorrent DHT Client " + $.bittorrent_dht.client_version,
+            _ => "BitTorrent DHT"
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.in_iface != null => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.in_iface != null => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=true,
+          message=case(
+            $.bittorrent_dht.error != null => to_str($.bittorrent_dht.error.msg),
+            $.bittorrent_dht.request_type != null => "BitTorrent DHT " + $.bittorrent_dht.request_type + " request",
+            _ => "BitTorrent DHT event"
+          ),
+          metadata=dict(
+            log_name="bittorrent_dht",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          raw_data=to_str($),
+          severity='Informational',
+          severity_id=case(
+            $.event_type == "bittorrent_dht" => 1,
+            _ => 0
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.bittorrent_dht.error != null => 'Failure',
+            $.bittorrent_dht.response != null => 'Success',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.bittorrent_dht.error != null => to_str($.bittorrent_dht.error.num),
+            _ => null
+          ),
+          status_detail=case(
+            $.bittorrent_dht.error != null => "Error " + to_str($.bittorrent_dht.error.num) + ": " + $.bittorrent_dht.error.msg,
+            $.bittorrent_dht.request_type != null => "Request type: " + $.bittorrent_dht.request_type + case(
+            $.bittorrent_dht.request.id != null => ", Node ID: " + $.bittorrent_dht.request.id,
+            _ => ""
+          ),
+            $.bittorrent_dht.response != null => "Response received" + case(
+            $.bittorrent_dht.response.id != null => ", Node ID: " + $.bittorrent_dht.response.id,
+            _ => ""
+          ) + case(
+            $.bittorrent_dht.response.token != null => ", Token: " + $.bittorrent_dht.response.token,
+            _ => ""
+          ),
+            _ => null
+          ),
+          status_id=case(
+            $.bittorrent_dht.error != null => 2,
+            $.bittorrent_dht.response != null => 1,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name='Network Activity: Traffic',
+          type_uid=400106,
+          unmapped=dict(
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: bittorrent-dht eval
+  - id: node_1765976890004
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            lower($.dhcp.dhcp_type) == "discover" => 1,
+            lower($.dhcp.dhcp_type) == "offer" => 2,
+            lower($.dhcp.dhcp_type) == "request" => 3,
+            lower($.dhcp.dhcp_type) == "decline" => 4,
+            lower($.dhcp.dhcp_type) == "ack" => 5,
+            lower($.dhcp.dhcp_type) == "nak" => 6,
+            lower($.dhcp.dhcp_type) == "release" => 7,
+            lower($.dhcp.dhcp_type) == "inform" => 8,
+            lower($.dhcp.dhcp_type) == "expire" => 9,
+            _ => 99
+          ),
+          activity_name=case(
+            lower($.dhcp.dhcp_type) == "discover" => 'Discover',
+            lower($.dhcp.dhcp_type) == "offer" => 'Offer',
+            lower($.dhcp.dhcp_type) == "request" => 'Request',
+            lower($.dhcp.dhcp_type) == "decline" => 'Decline',
+            lower($.dhcp.dhcp_type) == "ack" => 'Ack',
+            lower($.dhcp.dhcp_type) == "nak" => 'Nak',
+            lower($.dhcp.dhcp_type) == "release" => 'Release',
+            lower($.dhcp.dhcp_type) == "inform" => 'Inform',
+            lower($.dhcp.dhcp_type) == "expire" => 'Expire',
+            _ => 'Other'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='DHCP Activity',
+          class_uid=4004,
+          connection_info=dict(
+            direction=case(
+              $.src_ip == $.dhcp.relay_ip or str_contains($.src_ip, '192.168.') or str_contains($.src_ip, '10.') or str_contains($.src_ip, '172.') => 'Outbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.src_ip == $.dhcp.relay_ip or str_contains($.src_ip, "192.168.") or str_contains($.src_ip, "10.") or str_contains($.src_ip, "172.") => 2,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              lower($.proto) == "icmpv6" => 58,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dhcp.relay_ip,
+            port=$.dest_port
+          ),
+          is_renewal=case(
+            lower($.dhcp.dhcp_type) == "request" => true,
+            lower($.dhcp.dhcp_type) == "ack" => true,
+            _ => false
+          ),
+          lease_dur=$.dhcp.lease_time,
+          message=case(
+            $.dhcp.dhcp_type != null => upper($.dhcp.dhcp_type),
+            _ => "DHCP Event"
+          ),
+          metadata=dict(
+            log_name="suricata-dhcp",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          relay=dict(
+            ip=$.dhcp.relay_ip
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            hostname=$.dhcp.hostname,
+            ip=$.src_ip,
+            mac=$.dhcp.client_mac,
+            port=$.src_port
+          ),
+          status=case(
+            lower($.dhcp.dhcp_type) == 'ack' => 'Success',
+            lower($.dhcp.dhcp_type) == 'offer' => 'Success',
+            lower($.dhcp.dhcp_type) == 'nak' => 'Failure',
+            lower($.dhcp.dhcp_type) == 'decline' => 'Failure',
+            _ => 'Other'
+          ),
+          status_detail=case(
+            lower($.dhcp.dhcp_type) == "offer" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "ack" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "nak" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "decline" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "release" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "discover" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "request" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "inform" => upper($.dhcp.dhcp_type),
+            lower($.dhcp.dhcp_type) == "expire" => upper($.dhcp.dhcp_type),
+            _ => null
+          ),
+          status_id=case(
+            lower($.dhcp.dhcp_type) == "ack" => 1,
+            lower($.dhcp.dhcp_type) == "offer" => 1,
+            lower($.dhcp.dhcp_type) == "nak" => 2,
+            lower($.dhcp.dhcp_type) == "decline" => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=parse_int(substr($.timestamp, -5, 3)) * 60 + parse_int(substr($.timestamp, -2)),
+          transaction_uid=to_str($.dhcp.id),
+          type_name=case(
+            lower($.dhcp.dhcp_type) == "discover" => 'DHCP Activity: Discover',
+            lower($.dhcp.dhcp_type) == "offer" => 'DHCP Activity: Offer',
+            lower($.dhcp.dhcp_type) == "request" => 'DHCP Activity: Request',
+            lower($.dhcp.dhcp_type) == "decline" => 'DHCP Activity: Decline',
+            lower($.dhcp.dhcp_type) == "ack" => 'DHCP Activity: Ack',
+            lower($.dhcp.dhcp_type) == "nak" => 'DHCP Activity: Nak',
+            lower($.dhcp.dhcp_type) == "release" => 'DHCP Activity: Release',
+            lower($.dhcp.dhcp_type) == "inform" => 'DHCP Activity: Inform',
+            lower($.dhcp.dhcp_type) == "expire" => 'DHCP Activity: Expire',
+            _ => 'DHCP Activity: Other'
+          ),
+          type_uid=case(
+            lower($.dhcp.dhcp_type) == "discover" => 400401,
+            lower($.dhcp.dhcp_type) == "offer" => 400402,
+            lower($.dhcp.dhcp_type) == "request" => 400403,
+            lower($.dhcp.dhcp_type) == "decline" => 400404,
+            lower($.dhcp.dhcp_type) == "ack" => 400405,
+            lower($.dhcp.dhcp_type) == "nak" => 400406,
+            lower($.dhcp.dhcp_type) == "release" => 400407,
+            lower($.dhcp.dhcp_type) == "inform" => 400408,
+            lower($.dhcp.dhcp_type) == "expire" => 400409,
+            _ => 400499
+          ),
+          unmapped=dict(
+            dest_ip=$.dest_ip,
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: DHCP eval
+  - id: node_1765977084729
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.dns.type == "answer" => 2,
+            $.dns.type == "query" => 1,
+            _ => 0
+          ),
+          activity_name=case(
+            $.dns.type == 'answer' => 'Response',
+            $.dns.type == 'query' => 'Query',
+            _ => 'Unknown'
+          ),
+          answers=arr_foreach($.dns.answers, answer, dict(
+              rdata=arr_foreach($.dns.answers, answer, answer.rdata
+              )
+            )
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='DNS Activity',
+          class_uid=4003,
+          connection_info=dict(
+            direction_id=case(
+              $.dns.type == "query" => 1,
+              $.dns.type == "answer" => 2,
+              _ => 0
+            ),
+            protocol_name=$.proto
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $.dns.type == "answer" => "DNS answer received",
+            $.dns.type == "query" => "DNS query sent",
+            _ => "DNS event"
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            log_version=to_str($.dns.version),
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          query=dict(
+            hostname=$.dns.queries[0].rrname,
+            packet_uid=$.dns.id,
+            type=$.dns.queries[0].rrtype
+          ),
+          query_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          rcode=case(
+            $.dns.rcode == "NOERROR" => 'NoError',
+            $.dns.rcode == "FORMERR" => 'FormError',
+            $.dns.rcode == "SERVFAIL" => 'ServError',
+            $.dns.rcode == "NXDOMAIN" => 'NXDomain',
+            $.dns.rcode == "NOTIMP" => 'NotImp',
+            $.dns.rcode == "REFUSED" => 'Refused',
+            $.dns.rcode == "YXDOMAIN" => 'YXDomain',
+            $.dns.rcode == "YXRRSET" => 'YXRRSet',
+            $.dns.rcode == "NXRRSET" => 'NXRRSet',
+            $.dns.rcode == "NOTAUTH" => 'NotAuth',
+            $.dns.rcode == "NOTZONE" => 'NotZone',
+            $.dns.rcode == "DSOTYPENI" => 'DSOTYPENI',
+            $.dns.rcode == "BADVERS" or $.dns.rcode == "BADSIG" => 'BADSIG_VERS',
+            $.dns.rcode == "BADKEY" => 'BADKEY',
+            $.dns.rcode == "BADTIME" => 'BADTIME',
+            $.dns.rcode == "BADMODE" => 'BADMODE',
+            $.dns.rcode == "BADNAME" => 'BADNAME',
+            $.dns.rcode == "BADALG" => 'BADALG',
+            $.dns.rcode == "BADTRUNC" => 'BADTRUNC',
+            $.dns.rcode == "BADCOOKIE" => 'BADCOOKIE',
+            _ => 'Other'
+          ),
+          rcode_id=case(
+            $.dns.rcode == "NOERROR" => 0,
+            $.dns.rcode == "FORMERR" => 1,
+            $.dns.rcode == "SERVFAIL" => 2,
+            $.dns.rcode == "NXDOMAIN" => 3,
+            $.dns.rcode == "NOTIMP" => 4,
+            $.dns.rcode == "REFUSED" => 5,
+            $.dns.rcode == "YXDOMAIN" => 6,
+            $.dns.rcode == "YXRRSET" => 7,
+            $.dns.rcode == "NXRRSET" => 8,
+            $.dns.rcode == "NOTAUTH" => 9,
+            $.dns.rcode == "NOTZONE" => 10,
+            $.dns.rcode == "DSOTYPENI" => 11,
+            $.dns.rcode == "BADVERS" or $.dns.rcode == "BADSIG" => 16,
+            $.dns.rcode == "BADKEY" => 17,
+            $.dns.rcode == "BADTIME" => 18,
+            $.dns.rcode == "BADMODE" => 19,
+            $.dns.rcode == "BADNAME" => 20,
+            $.dns.rcode == "BADALG" => 21,
+            $.dns.rcode == "BADTRUNC" => 22,
+            $.dns.rcode == "BADCOOKIE" => 23,
+            _ => 99
+          ),
+          response_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.dns.rcode == "NOERROR" => 'Success',
+            $.dns.rcode == "FORMERR" => 'Failure',
+            $.dns.rcode == "SERVFAIL" => 'Failure',
+            $.dns.rcode == "NXDOMAIN" => 'Failure',
+            $.dns.rcode == "NOTIMP" => 'Failure',
+            $.dns.rcode == "REFUSED" => 'Failure',
+            $.dns.rcode == "YXDOMAIN" => 'Failure',
+            $.dns.rcode == "YXRRSET" => 'Failure',
+            $.dns.rcode == "NXRRSET" => 'Failure',
+            $.dns.rcode == "NOTAUTH" => 'Failure',
+            $.dns.rcode == "NOTZONE" => 'Failure',
+            $.dns.rcode == "DSOTYPENI" => 'Failure',
+            $.dns.rcode == "BADVERS" => 'Failure',
+            $.dns.rcode == "BADSIG" => 'Failure',
+            $.dns.rcode == "BADKEY" => 'Failure',
+            $.dns.rcode == "BADTIME" => 'Failure',
+            $.dns.rcode == "BADMODE" => 'Failure',
+            $.dns.rcode == "BADNAME" => 'Failure',
+            $.dns.rcode == "BADALG" => 'Failure',
+            $.dns.rcode == "BADTRUNC" => 'Failure',
+            $.dns.rcode == "BADCOOKIE" => 'Failure',
+            _ => 'Other'
+          ),
+          status_code=case(
+            $.dns.rcode == "NOERROR" => "0",
+            $.dns.rcode == "FORMERR" => "1",
+            $.dns.rcode == "SERVFAIL" => "2",
+            $.dns.rcode == "NXDOMAIN" => "3",
+            $.dns.rcode == "NOTIMP" => "4",
+            $.dns.rcode == "REFUSED" => "5",
+            $.dns.rcode == "YXDOMAIN" => "6",
+            $.dns.rcode == "YXRRSET" => "7",
+            $.dns.rcode == "NXRRSET" => "8",
+            $.dns.rcode == "NOTAUTH" => "9",
+            $.dns.rcode == "NOTZONE" => "10",
+            $.dns.rcode == "DSOTYPENI" => "11",
+            $.dns.rcode == "BADVERS" => "16",
+            $.dns.rcode == "BADSIG" => "16",
+            $.dns.rcode == "BADKEY" => "17",
+            $.dns.rcode == "BADTIME" => "18",
+            $.dns.rcode == "BADMODE" => "19",
+            $.dns.rcode == "BADNAME" => "20",
+            $.dns.rcode == "BADALG" => "21",
+            $.dns.rcode == "BADTRUNC" => "22",
+            $.dns.rcode == "BADCOOKIE" => "23",
+            _ => "99"
+          ),
+          status_detail=case(
+            $.dns.rcode == "NOERROR" => "DNS query resolved successfully",
+            $.dns.rcode == "FORMERR" => "Format error - DNS query was malformed",
+            $.dns.rcode == "SERVFAIL" => "Server failure - DNS server failed to process query",
+            $.dns.rcode == "NXDOMAIN" => "Non-existent domain - queried domain does not exist",
+            $.dns.rcode == "NOTIMP" => "Not implemented - DNS server does not support this query type",
+            $.dns.rcode == "REFUSED" => "Query refused - DNS server refused to process query",
+            $.dns.rcode == "YXDOMAIN" => "Name exists when it should not",
+            $.dns.rcode == "YXRRSET" => "RR set exists when it should not",
+            $.dns.rcode == "NXRRSET" => "RR set that should exist does not",
+            $.dns.rcode == "NOTAUTH" => "Server not authoritative for zone",
+            $.dns.rcode == "NOTZONE" => "Name not contained in zone",
+            $.dns.rcode == "DSOTYPENI" => "DSO-TYPE not implemented",
+            $.dns.rcode == "BADVERS" => "Bad OPT version",
+            $.dns.rcode == "BADSIG" => "TSIG signature failure",
+            $.dns.rcode == "BADKEY" => "Key not recognized",
+            $.dns.rcode == "BADTIME" => "Signature out of time window",
+            $.dns.rcode == "BADMODE" => "Bad TKEY mode",
+            $.dns.rcode == "BADNAME" => "Duplicate key name",
+            $.dns.rcode == "BADALG" => "Algorithm not supported",
+            $.dns.rcode == "BADTRUNC" => "Bad truncation",
+            $.dns.rcode == "BADCOOKIE" => "Bad/missing server cookie",
+            _ => "Unknown DNS response code"
+          ),
+          status_id=case(
+            $.dns.rcode == "NOERROR" => 1,
+            $.dns.rcode == "FORMERR" => 2,
+            $.dns.rcode == "SERVFAIL" => 2,
+            $.dns.rcode == "NXDOMAIN" => 2,
+            $.dns.rcode == "NOTIMP" => 2,
+            $.dns.rcode == "REFUSED" => 2,
+            $.dns.rcode == "YXDOMAIN" => 2,
+            $.dns.rcode == "YXRRSET" => 2,
+            $.dns.rcode == "NXRRSET" => 2,
+            $.dns.rcode == "NOTAUTH" => 2,
+            $.dns.rcode == "NOTZONE" => 2,
+            $.dns.rcode == "DSOTYPENI" => 2,
+            $.dns.rcode == "BADVERS" => 2,
+            $.dns.rcode == "BADSIG" => 2,
+            $.dns.rcode == "BADKEY" => 2,
+            $.dns.rcode == "BADTIME" => 2,
+            $.dns.rcode == "BADMODE" => 2,
+            $.dns.rcode == "BADNAME" => 2,
+            $.dns.rcode == "BADALG" => 2,
+            $.dns.rcode == "BADTRUNC" => 2,
+            $.dns.rcode == "BADCOOKIE" => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          type_name=case(
+            $.dns.type == 'answer' => 'DNS Activity: Response',
+            $.dns.type == 'query' => 'DNS Activity: Query',
+            _ => 'DNS Activity: Unknown'
+          ),
+          type_uid=4003 * 100 + case($.dns.type == "answer" => 2, $.dns.type == "query" => 1, _ => 0),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: DNS eval
+  - id: node_1765977126697
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            upper($.http.http_method) == "GET" => 3,
+            upper($.http.http_method) == "POST" => 6,
+            upper($.http.http_method) == "DELETE" => 2,
+            upper($.http.http_method) == "HEAD" => 4,
+            upper($.http.http_method) == "OPTIONS" => 5,
+            upper($.http.http_method) == "PUT" => 7,
+            upper($.http.http_method) == "TRACE" => 8,
+            upper($.http.http_method) == "PATCH" => 9,
+            upper($.http.http_method) == "CONNECT" => 1,
+            _ => 99
+          ),
+          activity_name=case(
+            upper($.http.http_method) == "GET" => 'Get',
+            upper($.http.http_method) == "POST" => 'Post',
+            upper($.http.http_method) == "DELETE" => 'Delete',
+            upper($.http.http_method) == "HEAD" => 'Head',
+            upper($.http.http_method) == "OPTIONS" => 'Options',
+            upper($.http.http_method) == "PUT" => 'Put',
+            upper($.http.http_method) == "TRACE" => 'Trace',
+            upper($.http.http_method) == "PATCH" => 'Patch',
+            upper($.http.http_method) == "CONNECT" => 'Connect',
+            _ => 'Other'
+          ),
+          app_name=$.app_proto,
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='HTTP Activity',
+          class_uid=4002,
+          connection_info=dict(
+            direction='Unknown',
+            direction_id=0,
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == 'tcp' => 6,
+              lower($.proto) == 'udp' => 17,
+              lower($.proto) == 'icmp' => 1,
+              lower($.proto) == 'icmpv6' => 58,
+              _ => 0
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            hostname=$.http.hostname,
+            ip=$.dest_ip,
+            mac=$.ether.dest_mac,
+            port=$.dest_port
+          ),
+          file=case(
+            $.fileinfo != null => dict(
+            name=$.fileinfo.filename,
+            size=$.fileinfo.size,
+            hashes=array(
+              dict(
+                algorithm="MD5",
+                algorithm_id=1,
+                value=$.fileinfo.md5
+              ),
+              dict(
+                algorithm="SHA-1",
+                algorithm_id=2,
+                value=$.fileinfo.sha1
+              ),
+              dict(
+                algorithm="SHA-256",
+                algorithm_id=3,
+                value=$.fileinfo.sha256
+              )
+            )
+          ),
+            _ => null
+          ),
+          http_request=dict(
+            http_method=upper($.http.http_method),
+            length=$.http.length,
+            url=dict(
+              hostname=$.http.hostname,
+              path=$.http.url,
+              port=$.http.http_port,
+              url_string=case(
+                $.http.url == '/' => lower($.http.protocol) + '://' + $.http.hostname + ':' + to_str($.http.http_port) + $.http.url,
+                _ => lower($.http.protocol) + '://' + $.http.hostname + ':' + to_str($.http.http_port) + $.http.url
+              )
+            ),
+            user_agent=$.http.http_user_agent,
+            version=$.http.protocol
+          ),
+          http_response=dict(
+            code=$.http.status,
+            content_type=$.http.http_content_type,
+            length=$.http.length
+          ),
+          message=case(
+            $.fileinfo != null => "File transfer detected: " + $.fileinfo.filename + " (" + to_str($.fileinfo.size) + " bytes, MD5: " + $.fileinfo.md5 + ") via HTTP " + upper($.http.http_method) + " to " + $.http.hostname + $.http.url + " - Status: " + to_str($.http.status),
+            _ => "HTTP " + upper($.http.http_method) + " request to " + $.http.hostname + $.http.url + " - Status: " + to_str($.http.status)
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            mac=$.ether.src_mac,
+            port=$.src_port
+          ),
+          status=case(
+            $.http.status >= 200 and $.http.status < 300 => 'Success',
+            $.http.status >= 400 => 'Failure',
+            $.http.status == 0 => 'Unknown',
+            _ => 'Other'
+          ),
+          status_code=to_str($.http.status),
+          status_detail=case(
+            $.http.status >= 200 and $.http.status < 300 => "HTTP " + to_str($.http.status) + " - " + case(
+            $.http.status == 200 => "OK",
+            $.http.status == 201 => "Created",
+            $.http.status == 202 => "Accepted",
+            $.http.status == 204 => "No Content",
+            _ => "Success"
+          ),
+            $.http.status >= 300 and $.http.status < 400 => "HTTP " + to_str($.http.status) + " - " + case(
+            $.http.status == 301 => "Moved Permanently",
+            $.http.status == 302 => "Found",
+            $.http.status == 304 => "Not Modified",
+            _ => "Redirect"
+          ),
+            $.http.status >= 400 and $.http.status < 500 => "HTTP " + to_str($.http.status) + " - " + case(
+            $.http.status == 400 => "Bad Request",
+            $.http.status == 401 => "Unauthorized",
+            $.http.status == 403 => "Forbidden",
+            $.http.status == 404 => "Not Found",
+            $.http.status == 405 => "Method Not Allowed",
+            _ => "Client Error"
+          ),
+            $.http.status >= 500 => "HTTP " + to_str($.http.status) + " - " + case(
+            $.http.status == 500 => "Internal Server Error",
+            $.http.status == 502 => "Bad Gateway",
+            $.http.status == 503 => "Service Unavailable",
+            $.http.status == 504 => "Gateway Timeout",
+            _ => "Server Error"
+          ),
+            _ => "HTTP " + to_str($.http.status) + " - Unknown Status"
+          ),
+          status_id=case(
+            $.http.status >= 200 and $.http.status < 300 => 1,
+            $.http.status >= 400 => 2,
+            $.http.status == 0 => 0,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            upper($.http.http_method) == "GET" => 'HTTP Activity: Get',
+            upper($.http.http_method) == "POST" => 'HTTP Activity: Post',
+            upper($.http.http_method) == "DELETE" => 'HTTP Activity: Delete',
+            upper($.http.http_method) == "HEAD" => 'HTTP Activity: Head',
+            upper($.http.http_method) == "OPTIONS" => 'HTTP Activity: Options',
+            upper($.http.http_method) == "PUT" => 'HTTP Activity: Put',
+            upper($.http.http_method) == "TRACE" => 'HTTP Activity: Trace',
+            upper($.http.http_method) == "PATCH" => 'HTTP Activity: Patch',
+            upper($.http.http_method) == "CONNECT" => 'HTTP Activity: Connect',
+            _ => 'HTTP Activity: Other'
+          ),
+          type_uid=4002 * 100 + case(
+            upper($.http.http_method) == "GET" => 3,
+            upper($.http.http_method) == "POST" => 6,
+            upper($.http.http_method) == "DELETE" => 2,
+            upper($.http.http_method) == "HEAD" => 4,
+            upper($.http.http_method) == "OPTIONS" => 5,
+            upper($.http.http_method) == "PUT" => 7,
+            upper($.http.http_method) == "TRACE" => 8,
+            upper($.http.http_method) == "PATCH" => 9,
+            upper($.http.http_method) == "CONNECT" => 1,
+            _ => 99
+          ),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: Fileinfo eval
+  - id: node_1765977202906
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => 2,
+            $.flow.state == "closed" => 2,
+            _ => 99
+          ),
+          activity_name=case(
+            $.flow.state == 'closed' and $.flow.reason == 'shutdown' => 'Close',
+            $.flow.state == 'closed' => 'Close',
+            _ => 'Other'
+          ),
+          app_name=$.app_proto,
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            boundary=case(
+              $.src_ip == $.dest_ip => 'Localhost',
+              _ => 'Unknown'
+            ),
+            boundary_id=case(
+              $.src_ip == $.dest_ip => 1,
+              _ => 0
+            ),
+            direction=case(
+              $.flow.pkts_toserver > 0 and $.flow.pkts_toclient > 0 => 'Lateral',
+              $.flow.pkts_toserver > 0 => 'Outbound',
+              $.flow.pkts_toclient > 0 => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.flow.pkts_toserver > 0 and $.flow.pkts_toclient > 0 => 3,
+              $.flow.pkts_toserver > 0 => 2,
+              $.flow.pkts_toclient > 0 => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => 99
+            ),
+            protocol_ver='Internet Protocol version 4 (IPv4)',
+            protocol_ver_id=4,
+            tcp_flags=parse_int($.tcp.tcp_flags, 16),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            mac=$.ether.dest_macs[0],
+            port=$.dest_port
+          ),
+          duration=$.flow.age * 1000,
+          end_time=ts_str_to_epoch($.flow.end, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          is_src_dst_assignment_known=true,
+          message=case(
+            $.flow.alerted == true => "Flow alert detected",
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => "Flow closed normally",
+            $.flow.state == "closed" => "Flow closed",
+            $.flow.state == "new" => "New flow established",
+            _ => "Network flow event"
+          ),
+          metadata=dict(
+            log_name="flow",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity=case(
+            $.flow.alerted == true => 'High',
+            $.flow.state == 'closed' and $.flow.reason == 'shutdown' => 'Informational',
+            $.flow.state == 'closed' => 'Low',
+            _ => 'Informational'
+          ),
+          severity_id=case(
+            $.flow.alerted == true => 4,
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => 1,
+            $.flow.state == "closed" => 2,
+            _ => 1
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            mac=$.ether.src_macs[0],
+            port=$.src_port
+          ),
+          start_time=ts_str_to_epoch($.flow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          status=case(
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => 'Success',
+            $.flow.state == "closed" => 'Success',
+            $.flow.state == "new" => 'Success',
+            $.flow.alerted == true => 'Failure',
+            _ => 'Other'
+          ),
+          status_code=case(
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => "0",
+            $.flow.state == "closed" => "1",
+            $.flow.state == "new" => "2",
+            $.flow.alerted == true => "ALERT",
+            _ => null
+          ),
+          status_detail=case(
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => "Flow closed normally via shutdown",
+            $.flow.state == "closed" and $.flow.reason != null => "Flow closed: " + $.flow.reason,
+            $.flow.state == "closed" => "Flow closed without specific reason",
+            $.flow.alerted == true => "Flow triggered security alert",
+            $.flow.state != null => "Flow state: " + $.flow.state,
+            _ => null
+          ),
+          status_id=case(
+            $.flow.state == "closed" and $.flow.reason == "shutdown" => 1,
+            $.flow.state == "closed" => 1,
+            $.flow.state == "new" => 1,
+            $.flow.alerted == true => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=parse_int(substr($.timestamp, -5, 3)) * 60 + parse_int(substr($.timestamp, -2)),
+          traffic=dict(
+            bytes=$.flow.bytes_toserver + $.flow.bytes_toclient,
+            bytes_in=$.flow.bytes_toclient,
+            bytes_out=$.flow.bytes_toserver,
+            packets=$.flow.pkts_toserver + $.flow.pkts_toclient,
+            packets_in=$.flow.pkts_toclient,
+            packets_out=$.flow.pkts_toserver
+          ),
+          type_name=case(
+            $.flow.state == 'closed' and $.flow.reason == 'shutdown' => 'Network Activity: Close',
+            $.flow.state == 'closed' => 'Network Activity: Close',
+            _ => 'Network Activity: Other'
+          ),
+          type_uid=4001 * 100 + case($.flow.state == "closed" and $.flow.reason == "shutdown" => 2, $.flow.state == "closed" => 2, _ => 99),
+          unmapped=dict(
+            event_type=$.event_type
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: flow eval
+  - id: node_1765977247525
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.ftp.command == "RETR" => 2,
+            $.ftp.command == "STOR" => 1,
+            $.ftp.command == "DELE" => 4,
+            $.ftp.command == "RNFR" or $.ftp.command == "RNTO" => 5,
+            $.ftp.command == "LIST" or $.ftp.command == "NLST" or $.ftp.command == "MLSD" => 6,
+            $.ftp.command == "EPRT" or $.ftp.command == "PORT" or $.ftp.command == "PASV" or $.ftp.command == "EPSV" => 99,
+            _ => 99
+          ),
+          activity_name=case(
+            $.ftp.command == "RETR" => 'Get',
+            $.ftp.command == "STOR" => 'Put',
+            $.ftp.command == "DELE" => 'Delete',
+            $.ftp.command == "RNFR" or $.ftp.command == "RNTO" => 'Rename',
+            $.ftp.command == "LIST" or $.ftp.command == "NLST" or $.ftp.command == "MLSD" => 'List',
+            $.ftp.command == "EPRT" or $.ftp.command == "PORT" or $.ftp.command == "PASV" or $.ftp.command == "EPSV" => 'Other',
+            _ => 'Other'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='FTP Activity',
+          class_uid=4008,
+          command=$.ftp.command,
+          command_responses=$.ftp.reply,
+          connection_info=dict(
+            direction=case(
+              $.ftp.mode == 'active' => 'Outbound',
+              $.ftp.mode == 'passive' => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.ftp.mode == 'active' => 2,
+              $.ftp.mode == 'passive' => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == 'tcp' => 6,
+              lower($.proto) == 'udp' => 17,
+              lower($.proto) == 'icmp' => 1,
+              _ => 99
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $.ftp.reply != null and size_of($.ftp.reply) > 0 => $.ftp.reply[0],
+            $.ftp.command != null => upper($.ftp.command),
+            _ => "FTP Activity"
+          ),
+          metadata=dict(
+            log_name='eve.json',
+            log_provider='Suricata',
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name='Suricata',
+              vendor_name='OISF'
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          name=$.ftp.command_data,
+          port=$.ftp.dynamic_port,
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.ftp.reply_received == 'yes' and $.ftp.completion_code != null and size_of($.ftp.completion_code) > 0 => case(
+            parse_int($.ftp.completion_code[0]) >= 200 and parse_int($.ftp.completion_code[0]) < 300 => 'Success',
+            parse_int($.ftp.completion_code[0]) >= 400 => 'Failure',
+            _ => 'Other'
+          ),
+            $.ftp.reply_received == 'no' => 'Failure',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.ftp.completion_code != null and size_of($.ftp.completion_code) > 0 => $.ftp.completion_code[0],
+            _ => null
+          ),
+          status_detail=case(
+            $.ftp.reply != null and size_of($.ftp.reply) > 0 => $.ftp.reply[0],
+            _ => null
+          ),
+          status_id=case(
+            $.ftp.reply_received == "yes" and $.ftp.completion_code != null and size_of($.ftp.completion_code) > 0 => case(
+            parse_int($.ftp.completion_code[0]) >= 200 and parse_int($.ftp.completion_code[0]) < 300 => 1,
+            parse_int($.ftp.completion_code[0]) >= 400 => 2,
+            _ => 99
+          ),
+            $.ftp.reply_received == "no" => 2,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type=$.ftp.mode,
+          type_name=case(
+            $.ftp.command == "RETR" => 'FTP Activity: Get',
+            $.ftp.command == "STOR" => 'FTP Activity: Put',
+            $.ftp.command == "DELE" => 'FTP Activity: Delete',
+            $.ftp.command == "RNFR" or $.ftp.command == "RNTO" => 'FTP Activity: Rename',
+            $.ftp.command == "LIST" or $.ftp.command == "NLST" or $.ftp.command == "MLSD" => 'FTP Activity: List',
+            $.ftp.command == "EPRT" or $.ftp.command == "PORT" or $.ftp.command == "PASV" or $.ftp.command == "EPSV" => 'FTP Activity: Other',
+            _ => 'FTP Activity: Other'
+          ),
+          type_uid=4008 * 100 + case($.ftp.command == "RETR" => 2, $.ftp.command == "STOR" => 1, $.ftp.command == "DELE" => 4, $.ftp.command == "RNFR" or $.ftp.command == "RNTO" => 5, $.ftp.command == "LIST" or $.ftp.command == "NLST" or $.ftp.command == "MLSD" => 6, $.ftp.command == "EPRT" or $.ftp.command == "PORT" or $.ftp.command == "PASV" or $.ftp.command == "EPSV" => 99, _ => 99),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: FTP eval
+  - id: node_1765977319455
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $['ftp_data']['command'] == "RETR" => 2,
+            $['ftp_data']['command'] == "STOR" => 1,
+            $['ftp_data']['command'] == "LIST" => 6,
+            $['ftp_data']['command'] == "DELE" => 4,
+            $['ftp_data']['command'] == "RNFR" => 5,
+            $['ftp_data']['command'] == "RNTO" => 5,
+            _ => 99
+          ),
+          activity_name=case(
+            $['ftp_data']['command'] == 'RETR' => 'Get',
+            $['ftp_data']['command'] == 'STOR' => 'Put',
+            $['ftp_data']['command'] == 'LIST' => 'List',
+            $['ftp_data']['command'] == 'DELE' => 'Delete',
+            $['ftp_data']['command'] == 'RNFR' => 'Rename',
+            $['ftp_data']['command'] == 'RNTO' => 'Rename',
+            _ => 'Other'
+          ),
+          app_name=case(
+            $.event_type == "ftp_data" => "Suricata FTP",
+            _ => "Suricata"
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='FTP Activity',
+          class_uid=4008,
+          command=$['ftp_data']['command'],
+          connection_info=dict(
+            direction='Outbound',
+            direction_id=2,
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $['ftp_data']['command'] == "RETR" => "FTP file download: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "STOR" => "FTP file upload: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "LIST" => "FTP directory listing",
+            $['ftp_data']['command'] == "DELE" => "FTP file deletion: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "RNFR" => "FTP file rename from: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "RNTO" => "FTP file rename to: " + $['ftp_data']['filename'],
+            _ => "FTP data transfer: " + $['ftp_data']['command'] + " " + $['ftp_data']['filename']
+          ),
+          metadata=dict(
+            log_name="eve.json",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            profiles=array(
+              "network"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          name=$['ftp_data']['filename'],
+          port=$.dest_port,
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status='Success',
+          status_detail=case(
+            $['ftp_data']['command'] == "RETR" => "File retrieved: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "STOR" => "File stored: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "LIST" => "Directory listing requested",
+            $['ftp_data']['command'] == "DELE" => "File deleted: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "RNFR" => "Rename source: " + $['ftp_data']['filename'],
+            $['ftp_data']['command'] == "RNTO" => "Rename target: " + $['ftp_data']['filename'],
+            _ => "FTP data transfer command: " + $['ftp_data']['command'] + " on file: " + $['ftp_data']['filename']
+          ),
+          status_id=1,
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type="passive",
+          type_name=case(
+            $['ftp_data']['command'] == "RETR" => 'FTP Activity: Get',
+            $['ftp_data']['command'] == "STOR" => 'FTP Activity: Put',
+            $['ftp_data']['command'] == "LIST" => 'FTP Activity: List',
+            $['ftp_data']['command'] == "DELE" => 'FTP Activity: Delete',
+            $['ftp_data']['command'] == "RNFR" => 'FTP Activity: Rename',
+            $['ftp_data']['command'] == "RNTO" => 'FTP Activity: Rename',
+            _ => 'FTP Activity: Other'
+          ),
+          type_uid=4008 * 100 + case(
+          $['ftp_data']['command'] == "RETR" => 2,
+          $['ftp_data']['command'] == "STOR" => 1,
+          $['ftp_data']['command'] == "LIST" => 6,
+          $['ftp_data']['command'] == "DELE" => 4,
+          $['ftp_data']['command'] == "RNFR" => 5,
+          $['ftp_data']['command'] == "RNTO" => 5,
+          _ => 99
+        ),
+          unmapped=dict(
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: FTP_DATA eval
+  - id: node_1765977359919
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            upper($.http.http_method) == "GET" => 3,
+            upper($.http.http_method) == "POST" => 6,
+            upper($.http.http_method) == "DELETE" => 2,
+            upper($.http.http_method) == "HEAD" => 4,
+            upper($.http.http_method) == "OPTIONS" => 5,
+            upper($.http.http_method) == "PUT" => 7,
+            upper($.http.http_method) == "TRACE" => 8,
+            upper($.http.http_method) == "PATCH" => 9,
+            upper($.http.http_method) == "CONNECT" => 1,
+            _ => 99
+          ),
+          activity_name=case(
+            upper($.http.http_method) == 'GET' => 'Get',
+            upper($.http.http_method) == 'POST' => 'Post',
+            upper($.http.http_method) == 'DELETE' => 'Delete',
+            upper($.http.http_method) == 'HEAD' => 'Head',
+            upper($.http.http_method) == 'OPTIONS' => 'Options',
+            upper($.http.http_method) == 'PUT' => 'Put',
+            upper($.http.http_method) == 'TRACE' => 'Trace',
+            upper($.http.http_method) == 'PATCH' => 'Patch',
+            upper($.http.http_method) == 'CONNECT' => 'Connect',
+            _ => 'Other'
+          ),
+          app_name="Suricata",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='HTTP Activity',
+          class_uid=4002,
+          connection_info=dict(
+            direction='Outbound',
+            direction_id=2,
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              lower($.proto) == "icmpv6" => 58,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            hostname=$.http.hostname,
+            ip=$.dest_ip,
+            mac=$.ether.dest_mac,
+            port=$.dest_port
+          ),
+          http_request=dict(
+            http_method=$.http.http_method,
+            length=$.http.length,
+            uid=to_str($.tx_id),
+            url=dict(
+              hostname=$.http.hostname,
+              path=$.http.url,
+              port=$.http.http_port,
+              scheme=lower(str_split($.http.protocol, "/")[0]),
+              url_string=case(
+                $.http.http_port == 443 => "https://" + $.http.hostname + $.http.url,
+                $.http.http_port == 80 => "http://" + $.http.hostname + $.http.url,
+                _ => lower(str_split($.http.protocol, "/")[0]) + "://" + $.http.hostname + ":" + to_str($.http.http_port) + $.http.url
+              )
+            ),
+            user_agent=$.http.http_user_agent,
+            version=$.http.protocol
+          ),
+          http_response=dict(
+            code=$.http.status,
+            content_type=$.http.http_content_type,
+            length=$.http.length,
+            status=case(
+              $.http.status >= 200 and $.http.status < 300 => "OK",
+              $.http.status >= 300 and $.http.status < 400 => "Redirect",
+              $.http.status >= 400 and $.http.status < 500 => "Client Error",
+              $.http.status >= 500 => "Server Error",
+              _ => "Unknown"
+            )
+          ),
+          message=case(
+            $.http.status >= 500 => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " failed with server error (" + to_str($.http.status) + ")",
+            $.http.status >= 400 => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " failed with client error (" + to_str($.http.status) + ")",
+            $.http.status >= 300 => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " redirected (" + to_str($.http.status) + ")",
+            $.http.status >= 200 => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " succeeded (" + to_str($.http.status) + ")",
+            _ => "HTTP " + $.http.http_method + " request to " + $.http.hostname + $.http.url + " completed with status " + to_str($.http.status)
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity=case(
+            $.http.status >= 500 => 'High',
+            $.http.status >= 400 => 'Medium',
+            $.http.status >= 300 => 'Low',
+            $.http.status >= 200 => 'Informational',
+            _ => 'Unknown'
+          ),
+          severity_id=case(
+            $.http.status >= 500 => 4,
+            $.http.status >= 400 => 3,
+            $.http.status >= 300 => 2,
+            $.http.status >= 200 => 1,
+            _ => 0
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            mac=$.ether.src_mac,
+            port=$.src_port
+          ),
+          status=case(
+            $.http.status >= 200 and $.http.status < 300 => 'Success',
+            $.http.status >= 300 => 'Failure',
+            $.http.status != null => 'Failure',
+            _ => 'Unknown'
+          ),
+          status_code=to_str($.http.status),
+          status_detail=case(
+            $.http.status >= 500 => "Server Error: " + to_str($.http.status) + " - " + case(
+            $.http.status == 500 => "Internal Server Error",
+            $.http.status == 501 => "Not Implemented",
+            $.http.status == 502 => "Bad Gateway",
+            $.http.status == 503 => "Service Unavailable",
+            $.http.status == 504 => "Gateway Timeout",
+            _ => "Server Error"
+          ),
+            $.http.status >= 400 => "Client Error: " + to_str($.http.status) + " - " + case(
+            $.http.status == 400 => "Bad Request",
+            $.http.status == 401 => "Unauthorized",
+            $.http.status == 403 => "Forbidden",
+            $.http.status == 404 => "Not Found",
+            $.http.status == 405 => "Method Not Allowed",
+            $.http.status == 408 => "Request Timeout",
+            $.http.status == 429 => "Too Many Requests",
+            _ => "Client Error"
+          ),
+            $.http.status >= 300 => "Redirect: " + to_str($.http.status) + " - " + case(
+            $.http.status == 301 => "Moved Permanently",
+            $.http.status == 302 => "Found",
+            $.http.status == 303 => "See Other",
+            $.http.status == 304 => "Not Modified",
+            $.http.status == 307 => "Temporary Redirect",
+            $.http.status == 308 => "Permanent Redirect",
+            _ => "Redirect"
+          ),
+            $.http.status >= 200 => "Success: " + to_str($.http.status) + " - " + case(
+            $.http.status == 200 => "OK",
+            $.http.status == 201 => "Created",
+            $.http.status == 202 => "Accepted",
+            $.http.status == 204 => "No Content",
+            _ => "Success"
+          ),
+            _ => "HTTP Status: " + to_str($.http.status)
+          ),
+          status_id=case(
+            $.http.status >= 200 and $.http.status < 300 => 1,
+            $.http.status >= 300 => 2,
+            $.http.status != null => 2,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=case(
+            str_contains($.timestamp, "+") => parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2)),
+            str_contains($.timestamp, "-") => -(parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2))),
+            _ => 0
+          ),
+          traffic=dict(
+            bytes=$.http.length,
+            packets=$.pcap_cnt
+          ),
+          type_name=case(
+            upper($.http.http_method) == 'GET' => 'HTTP Activity: Get',
+            upper($.http.http_method) == 'POST' => 'HTTP Activity: Post',
+            upper($.http.http_method) == 'DELETE' => 'HTTP Activity: Delete',
+            upper($.http.http_method) == 'HEAD' => 'HTTP Activity: Head',
+            upper($.http.http_method) == 'OPTIONS' => 'HTTP Activity: Options',
+            upper($.http.http_method) == 'PUT' => 'HTTP Activity: Put',
+            upper($.http.http_method) == 'TRACE' => 'HTTP Activity: Trace',
+            upper($.http.http_method) == 'PATCH' => 'HTTP Activity: Patch',
+            upper($.http.http_method) == 'CONNECT' => 'HTTP Activity: Connect',
+            _ => 'HTTP Activity: Other'
+          ),
+          type_uid=case(
+            upper($.http.http_method) == "GET" => 400203,
+            upper($.http.http_method) == "POST" => 400206,
+            upper($.http.http_method) == "DELETE" => 400202,
+            upper($.http.http_method) == "HEAD" => 400204,
+            upper($.http.http_method) == "OPTIONS" => 400205,
+            upper($.http.http_method) == "PUT" => 400207,
+            upper($.http.http_method) == "TRACE" => 400208,
+            upper($.http.http_method) == "PATCH" => 400209,
+            upper($.http.http_method) == "CONNECT" => 400201,
+            _ => 400299
+          ),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: HTTP eval
+  - id: node_1765977397823
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            upper($['http2']['request']['headers'][1]['value']) == "GET" => 3,
+            upper($['http2']['request']['headers'][1]['value']) == "POST" => 6,
+            upper($['http2']['request']['headers'][1]['value']) == "DELETE" => 2,
+            upper($['http2']['request']['headers'][1]['value']) == "HEAD" => 4,
+            upper($['http2']['request']['headers'][1]['value']) == "OPTIONS" => 5,
+            upper($['http2']['request']['headers'][1]['value']) == "PUT" => 7,
+            upper($['http2']['request']['headers'][1]['value']) == "TRACE" => 8,
+            upper($['http2']['request']['headers'][1]['value']) == "PATCH" => 9,
+            upper($['http2']['request']['headers'][1]['value']) == "CONNECT" => 1,
+            _ => 99
+          ),
+          activity_name=case(
+            upper($['http2']['request']['headers'][1]['value']) == "GET" => 'Get',
+            upper($['http2']['request']['headers'][1]['value']) == "POST" => 'Post',
+            upper($['http2']['request']['headers'][1]['value']) == "DELETE" => 'Delete',
+            upper($['http2']['request']['headers'][1]['value']) == "HEAD" => 'Head',
+            upper($['http2']['request']['headers'][1]['value']) == "OPTIONS" => 'Options',
+            upper($['http2']['request']['headers'][1]['value']) == "PUT" => 'Put',
+            upper($['http2']['request']['headers'][1]['value']) == "TRACE" => 'Trace',
+            upper($['http2']['request']['headers'][1]['value']) == "PATCH" => 'Patch',
+            upper($['http2']['request']['headers'][1]['value']) == "CONNECT" => 'Connect',
+            _ => 'Other'
+          ),
+          app_name="Suricata",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='HTTP Activity',
+          class_uid=4002,
+          connection_info=dict(
+            direction=case(
+              $.src_ip == '192.168.100.237' => 'Outbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.src_ip == "192.168.100.237" => 2,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              lower($.proto) == "icmpv6" => 58,
+              _ => 0
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          http_request=dict(
+            http_method=upper($['http2']['request']['headers'][1]['value']),
+            url=dict(
+              hostname=str_split($['http2']['request']['headers'][0]['value'], ':')[0],
+              path=$['http2']['request']['headers'][2]['value'],
+              port=parse_int(str_split($['http2']['request']['headers'][0]['value'], ':')[1]),
+              scheme=$['http2']['request']['headers'][3]['value'],
+              url_string=case(
+                str_contains($['http2']['request']['headers'][0]['value'], ':') => $['http2']['request']['headers'][3]['value'] + '://' + $['http2']['request']['headers'][0]['value'] + $['http2']['request']['headers'][2]['value'],
+                _ => $['http2']['request']['headers'][3]['value'] + '://' + $['http2']['request']['headers'][0]['value'] + $['http2']['request']['headers'][2]['value']
+              )
+            ),
+            user_agent=$['http2']['request']['headers'][6]['value']
+          ),
+          http_response=dict(
+            body_length=parse_int($['http2']['response']['headers'][2]['value']),
+            code=parse_int($['http2']['response']['headers'][0]['value']),
+            length=parse_int($['http2']['response']['headers'][2]['value']),
+            status=case(
+              parse_int($['http2']['response']['headers'][0]['value']) >= 200 and parse_int($['http2']['response']['headers'][0]['value']) < 300 => "OK",
+              parse_int($['http2']['response']['headers'][0]['value']) >= 300 and parse_int($['http2']['response']['headers'][0]['value']) < 400 => "Redirect",
+              parse_int($['http2']['response']['headers'][0]['value']) >= 400 and parse_int($['http2']['response']['headers'][0]['value']) < 500 => "Client Error",
+              parse_int($['http2']['response']['headers'][0]['value']) >= 500 => "Server Error",
+              _ => "Unknown"
+            )
+          ),
+          message=case(
+            $['http2']['request'] != null and $['http2']['response'] != null => "HTTP/2 " + upper($['http2']['request']['headers'][1]['value']) + " request to " + $['http2']['request']['headers'][2]['value'] + " returned status " + $['http2']['response']['headers'][0]['value'],
+            $['http2']['request'] != null => "HTTP/2 " + upper($['http2']['request']['headers'][1]['value']) + " request to " + $['http2']['request']['headers'][2]['value'],
+            _ => "HTTP/2 activity detected"
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          raw_data=to_str($),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            parse_int($['http2']['response']['headers'][0]['value']) >= 200 and parse_int($['http2']['response']['headers'][0]['value']) < 300 => 'Success',
+            parse_int($['http2']['response']['headers'][0]['value']) >= 400 => 'Failure',
+            _ => 'Other'
+          ),
+          status_code=$['http2']['response']['headers'][0]['value'],
+          status_detail=case(
+            parse_int($['http2']['response']['headers'][0]['value']) >= 200 and parse_int($['http2']['response']['headers'][0]['value']) < 300 => "HTTP/2 request successful with status " + $['http2']['response']['headers'][0]['value'],
+            parse_int($['http2']['response']['headers'][0]['value']) >= 300 and parse_int($['http2']['response']['headers'][0]['value']) < 400 => "HTTP/2 request redirected with status " + $['http2']['response']['headers'][0]['value'],
+            parse_int($['http2']['response']['headers'][0]['value']) >= 400 and parse_int($['http2']['response']['headers'][0]['value']) < 500 => "HTTP/2 client error with status " + $['http2']['response']['headers'][0]['value'],
+            parse_int($['http2']['response']['headers'][0]['value']) >= 500 => "HTTP/2 server error with status " + $['http2']['response']['headers'][0]['value'],
+            _ => "HTTP/2 request completed"
+          ),
+          status_id=case(
+            parse_int($['http2']['response']['headers'][0]['value']) >= 200 and parse_int($['http2']['response']['headers'][0]['value']) < 300 => 1,
+            parse_int($['http2']['response']['headers'][0]['value']) >= 400 => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            upper($['http2']['request']['headers'][1]['value']) == "GET" => 'HTTP Activity: Get',
+            upper($['http2']['request']['headers'][1]['value']) == "POST" => 'HTTP Activity: Post',
+            upper($['http2']['request']['headers'][1]['value']) == "DELETE" => 'HTTP Activity: Delete',
+            upper($['http2']['request']['headers'][1]['value']) == "HEAD" => 'HTTP Activity: Head',
+            upper($['http2']['request']['headers'][1]['value']) == "OPTIONS" => 'HTTP Activity: Options',
+            upper($['http2']['request']['headers'][1]['value']) == "PUT" => 'HTTP Activity: Put',
+            upper($['http2']['request']['headers'][1]['value']) == "TRACE" => 'HTTP Activity: Trace',
+            upper($['http2']['request']['headers'][1]['value']) == "PATCH" => 'HTTP Activity: Patch',
+            upper($['http2']['request']['headers'][1]['value']) == "CONNECT" => 'HTTP Activity: Connect',
+            _ => 'HTTP Activity: Other'
+          ),
+          type_uid=case(
+            upper($['http2']['request']['headers'][1]['value']) == "GET" => 400203,
+            upper($['http2']['request']['headers'][1]['value']) == "POST" => 400206,
+            upper($['http2']['request']['headers'][1]['value']) == "DELETE" => 400202,
+            upper($['http2']['request']['headers'][1]['value']) == "HEAD" => 400204,
+            upper($['http2']['request']['headers'][1]['value']) == "OPTIONS" => 400205,
+            upper($['http2']['request']['headers'][1]['value']) == "PUT" => 400207,
+            upper($['http2']['request']['headers'][1]['value']) == "TRACE" => 400208,
+            upper($['http2']['request']['headers'][1]['value']) == "PATCH" => 400209,
+            upper($['http2']['request']['headers'][1]['value']) == "CONNECT" => 400201,
+            _ => 400299
+          ),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: HTTP2 eval
+  - id: node_1765977507321
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 3,
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 3,
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 4,
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 4,
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 99,
+            _ => 99
+          ),
+          activity_name=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 'Authentication Ticket',
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 'Authentication Ticket',
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 'Service Ticket Request',
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 'Service Ticket Request',
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 'Other',
+            _ => 'Other'
+          ),
+          actor=dict(
+            user=dict(
+              domain=$['krb5']['realm'],
+              name=$['krb5']['cname']
+            )
+          ),
+          auth_protocol='Kerberos',
+          auth_protocol_id=2,
+          category_name='Identity & Access Management',
+          category_uid=3,
+          class_name='Authentication',
+          class_uid=3002,
+          dst_endpoint=dict(
+            ip=$['dest_ip'],
+            port=$['dest_port']
+          ),
+          is_remote=true,
+          message=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 'Kerberos AS-REQ: Authentication Service Request from ' + $['krb5']['cname'] + '@' + $['krb5']['realm'],
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 'Kerberos AS-REP: Authentication Service Reply for ' + $['krb5']['cname'] + '@' + $['krb5']['realm'],
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 'Kerberos TGS-REQ: Ticket Granting Service Request from ' + $['krb5']['cname'] + '@' + $['krb5']['realm'] + ' for service ' + $['krb5']['sname'],
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 'Kerberos TGS-REP: Ticket Granting Service Reply for ' + $['krb5']['cname'] + '@' + $['krb5']['realm'] + ' accessing service ' + $['krb5']['sname'] + ' using ' + $['krb5']['encryption'],
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 'Kerberos Error for ' + $['krb5']['cname'] + '@' + $['krb5']['realm'],
+            _ => 'Kerberos event: ' + $['krb5']['msg_type'] + ' for ' + $['krb5']['cname'] + '@' + $['krb5']['realm']
+          ),
+          metadata=dict(
+            log_name='suricata',
+            log_provider='Suricata',
+            logged_time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$['timestamp'],
+            product=dict(
+              name='Suricata',
+              vendor_name='OISF'
+            ),
+            profiles=array(
+              'network'
+            ),
+            uid=to_str($['flow_id']),
+            version="1.6.0"
+          ),
+          service=dict(
+            name=$['krb5']['sname']
+          ),
+          session=dict(
+            created_time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            is_remote=true,
+            uid=to_str($['flow_id'])
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 'Success',
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 'Success',
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 'Failure',
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 'Other',
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 'Other',
+            _ => 'Other'
+          ),
+          status_detail=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => case(
+            $['krb5']['weak_encryption'] == true => 'WEAK_ENCRYPTION_USED',
+            _ => 'AUTHENTICATION_SERVICE_SUCCESS'
+          ),
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => case(
+            $['krb5']['weak_encryption'] == true => 'WEAK_ENCRYPTION_USED',
+            $['krb5']['ticket_weak_encryption'] == true => 'WEAK_TICKET_ENCRYPTION_USED',
+            _ => 'TICKET_GRANTING_SUCCESS'
+          ),
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 'AUTHENTICATION_SERVICE_REQUESTED',
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 'TICKET_GRANTING_REQUESTED',
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 'KERBEROS_ERROR',
+            _ => 'UNKNOWN_KERBEROS_MESSAGE_TYPE'
+          ),
+          status_id=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 1,
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 1,
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 2,
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 99,
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 99,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 'Authentication: Authentication Ticket',
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 'Authentication: Authentication Ticket',
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 'Authentication: Service Ticket Request',
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 'Authentication: Service Ticket Request',
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 'Authentication: Other',
+            _ => 'Authentication: Other'
+          ),
+          type_uid=case(
+            $['krb5']['msg_type'] == 'KRB_AS_REQ' => 300203,
+            $['krb5']['msg_type'] == 'KRB_AS_REP' => 300203,
+            $['krb5']['msg_type'] == 'KRB_TGS_REQ' => 300204,
+            $['krb5']['msg_type'] == 'KRB_TGS_REP' => 300204,
+            $['krb5']['msg_type'] == 'KRB_ERROR' => 300299,
+            _ => 300299
+          ),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src,
+            proto=$.proto
+          ),
+          user=dict(
+            domain=$['krb5']['realm'],
+            name=$['krb5']['cname']
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: KRB5 eval
+  - id: node_1765977543451
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          app_name="Modbus",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.pkt_src == 'stream (flow timeout)' => 'Unknown',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.pkt_src == 'stream (flow timeout)' => 0,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              $.proto == 'TCP' => 6,
+              $.proto == 'UDP' => 17,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=$.pkt_src != 'stream (flow timeout)',
+          message=case(
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => str_split(str_split($['modbus']['request']['access_type'], ' | ')[0], ' ')[0] + ' ' + $['modbus']['request']['function_code'] + ' request from ' + $.src_ip + ' to ' + $.dest_ip + ' resulted in DATA_VALUE error',
+            $['modbus']['response']['error_flags'] == 'NONE' => str_split(str_split($['modbus']['request']['access_type'], ' | ')[0], ' ')[0] + ' ' + $['modbus']['request']['function_code'] + ' request from ' + $.src_ip + ' to ' + $.dest_ip + ' completed successfully',
+            _ => 'Modbus ' + $['modbus']['request']['function_code'] + ' transaction between ' + $.src_ip + ' and ' + $.dest_ip + ' with error flag: ' + $['modbus']['response']['error_flags']
+          ),
+          metadata=dict(
+            log_name="modbus",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity=case(
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 'Medium',
+            $['modbus']['response']['error_flags'] == 'NONE' => 'Informational',
+            _ => 'Other'
+          ),
+          severity_id=case(
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 3,
+            $['modbus']['response']['error_flags'] == 'NONE' => 1,
+            _ => 99
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $['modbus']['response']['error_flags'] == 'NONE' => 'Success',
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 'Failure',
+            $['modbus']['response']['error_flags'] != null => 'Other',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 'DATA_VALUE',
+            $['modbus']['response']['error_flags'] == 'NONE' => 'SUCCESS',
+            _ => $['modbus']['response']['error_flags']
+          ),
+          status_detail=case(
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 'Modbus response error: DATA_VALUE - Invalid data value in response',
+            $['modbus']['response']['error_flags'] == 'NONE' => 'Modbus transaction completed without errors',
+            $['modbus']['response']['error_flags'] != null => 'Modbus response error: ' + $['modbus']['response']['error_flags'],
+            _ => null
+          ),
+          status_id=case(
+            $['modbus']['response']['error_flags'] == 'NONE' => 1,
+            $['modbus']['response']['error_flags'] == 'DATA_VALUE' => 2,
+            $['modbus']['response']['error_flags'] != null => 99,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name='Network Activity: Traffic',
+          type_uid=400106,
+          unmapped=dict(
+            event_type=$.event_type,
+            pcap_cnt=$.pcap_cnt
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: modbus eval
+  - id: node_1765977585335
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.mqtt.connect != null => 1,
+            $.mqtt.connack != null => 1,
+            $.mqtt.disconnect != null => 2,
+            $.mqtt.subscribe != null => 7,
+            $.mqtt.suback != null => 7,
+            $.mqtt.unsubscribe != null => 2,
+            $.mqtt.unsuback != null => 2,
+            $.mqtt.publish != null => 6,
+            $.mqtt.puback != null => 6,
+            $.mqtt.pubrec != null => 6,
+            $.mqtt.pubrel != null => 6,
+            $.mqtt.pubcomp != null => 6,
+            $.mqtt.auth != null => 99,
+            _ => 0
+          ),
+          activity_name=case(
+            $.mqtt.connect != null => 'Open',
+            $.mqtt.connack != null => 'Open',
+            $.mqtt.disconnect != null => 'Close',
+            $.mqtt.subscribe != null => 'Listen',
+            $.mqtt.suback != null => 'Listen',
+            $.mqtt.unsubscribe != null => 'Close',
+            $.mqtt.unsuback != null => 'Close',
+            $.mqtt.publish != null => 'Traffic',
+            $.mqtt.puback != null => 'Traffic',
+            $.mqtt.pubrec != null => 'Traffic',
+            $.mqtt.pubrel != null => 'Traffic',
+            $.mqtt.pubcomp != null => 'Traffic',
+            $.mqtt.auth != null => 'Other',
+            _ => 'Unknown'
+          ),
+          app_name="MQTT",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.src_ip == $.dest_ip => 'Lateral',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.src_ip == $.dest_ip => 3,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              _ => null
+            ),
+            protocol_ver=case(
+              str_contains($.src_ip, ':') => 'Internet Protocol version 6 (IPv6)',
+              _ => 'Internet Protocol version 4 (IPv4)'
+            ),
+            protocol_ver_id=case(
+              str_contains($.src_ip, ":") => 6,
+              _ => 4
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=true,
+          message=case(
+            $.mqtt.publish != null and $.mqtt.publish.message != null => $.mqtt.publish.message,
+            $.mqtt.connect != null and $.mqtt.connect.will != null and $.mqtt.connect.will.message != null => $.mqtt.connect.will.message,
+            $.mqtt.disconnect != null => "MQTT Disconnect",
+            $.mqtt.subscribe != null => "MQTT Subscribe",
+            $.mqtt.unsubscribe != null => "MQTT Unsubscribe",
+            $.mqtt.auth != null => "MQTT Authentication",
+            _ => "MQTT Event"
+          ),
+          metadata=dict(
+            event_code=$.event_type,
+            log_name="mqtt",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 0 => 'Success',
+            $.mqtt.connack != null and $.mqtt.connack.return_code != 0 => 'Failure',
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 0 => 'Success',
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 16 => 'Success',
+            $.mqtt.puback != null and $.mqtt.puback.reason_code >= 128 => 'Failure',
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 0 => 'Success',
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 16 => 'Success',
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code >= 128 => 'Failure',
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 0 => 'Success',
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 146 => 'Failure',
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 0 => 'Success',
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 146 => 'Failure',
+            $.mqtt.connect != null => 'Success',
+            $.mqtt.subscribe != null => 'Success',
+            $.mqtt.suback != null => 'Success',
+            $.mqtt.unsubscribe != null => 'Success',
+            $.mqtt.unsuback != null => 'Success',
+            $.mqtt.publish != null => 'Success',
+            $.mqtt.disconnect != null => 'Success',
+            $.mqtt.auth != null and $.mqtt.auth.reason_code == 0 => 'Success',
+            $.mqtt.auth != null and $.mqtt.auth.reason_code != 0 => 'Other',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.mqtt.connack != null and $.mqtt.connack.return_code != null => to_str($.mqtt.connack.return_code),
+            $.mqtt.puback != null and $.mqtt.puback.reason_code != null => to_str($.mqtt.puback.reason_code),
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code != null => to_str($.mqtt.pubrec.reason_code),
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code != null => to_str($.mqtt.pubrel.reason_code),
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code != null => to_str($.mqtt.pubcomp.reason_code),
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code != null => to_str($.mqtt.disconnect.reason_code),
+            $.mqtt.auth != null and $.mqtt.auth.reason_code != null => to_str($.mqtt.auth.reason_code),
+            _ => null
+          ),
+          status_detail=case(
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 0 => "Connection accepted",
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 1 => "Connection refused: unacceptable protocol version",
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 2 => "Connection refused: identifier rejected",
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 3 => "Connection refused: server unavailable",
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 4 => "Connection refused: bad username or password",
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 5 => "Connection refused: not authorized",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 0 => "Success",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 16 => "No matching subscribers",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 128 => "Unspecified error",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 131 => "Implementation specific error",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 135 => "Not authorized",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 144 => "Topic name invalid",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 145 => "Packet identifier in use",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 151 => "Quota exceeded",
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 153 => "Payload format invalid",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 0 => "Success",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 16 => "No matching subscribers",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 128 => "Unspecified error",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 131 => "Implementation specific error",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 135 => "Not authorized",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 144 => "Topic name invalid",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 145 => "Packet identifier in use",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 151 => "Quota exceeded",
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 153 => "Payload format invalid",
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 0 => "Success",
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 146 => "Packet identifier not found",
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 0 => "Success",
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 146 => "Packet identifier not found",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 0 => "Normal disconnection",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 4 => "Disconnect with will message",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 128 => "Unspecified error",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 129 => "Malformed packet",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 130 => "Protocol error",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 131 => "Implementation specific error",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 135 => "Not authorized",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 137 => "Server busy",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 139 => "Server shutting down",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 141 => "Keep alive timeout",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 142 => "Session taken over",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 143 => "Topic filter invalid",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 144 => "Topic name invalid",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 147 => "Receive maximum exceeded",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 148 => "Topic alias invalid",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 149 => "Packet too large",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 150 => "Message rate too high",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 151 => "Quota exceeded",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 152 => "Administrative action",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 153 => "Payload format invalid",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 154 => "Retain not supported",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 155 => "QoS not supported",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 156 => "Use another server",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 157 => "Server moved",
+            $.mqtt.disconnect != null and $.mqtt.disconnect.reason_code == 159 => "Connection rate exceeded",
+            $.mqtt.auth != null and $.mqtt.auth.reason_code == 0 => "Success",
+            $.mqtt.auth != null and $.mqtt.auth.reason_code == 24 => "Continue authentication",
+            $.mqtt.auth != null and $.mqtt.auth.reason_code == 25 => "Re-authenticate",
+            $.mqtt.connect != null and $.mqtt.connect.protocol_version != null => "MQTT protocol version " + to_str($.mqtt.connect.protocol_version),
+            $.mqtt.publish != null and $.mqtt.publish.qos != null => "QoS level " + to_str($.mqtt.publish.qos),
+            $.mqtt.publish != null and $.mqtt.publish.topic != null => "Topic: " + $.mqtt.publish.topic,
+            $.mqtt.publish != null and $.mqtt.publish.truncated == true => "Message truncated, skipped " + to_str($.mqtt.publish.skipped_length) + " bytes",
+            $.mqtt.subscribe != null and $.mqtt.subscribe.topics != null => "Subscribed to " + to_str(size_of($.mqtt.subscribe.topics)) + " topics",
+            $.mqtt.suback != null and $.mqtt.suback.qos_granted != null => "Granted QoS levels: " + to_str($.mqtt.suback.qos_granted),
+            $.mqtt.unsubscribe != null and $.mqtt.unsubscribe.topics != null => "Unsubscribed from " + to_str(size_of($.mqtt.unsubscribe.topics)) + " topics",
+            _ => null
+          ),
+          status_id=case(
+            $.mqtt.connack != null and $.mqtt.connack.return_code == 0 => 1,
+            $.mqtt.connack != null and $.mqtt.connack.return_code != 0 => 2,
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 0 => 1,
+            $.mqtt.puback != null and $.mqtt.puback.reason_code == 16 => 1,
+            $.mqtt.puback != null and $.mqtt.puback.reason_code >= 128 => 2,
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 0 => 1,
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code == 16 => 1,
+            $.mqtt.pubrec != null and $.mqtt.pubrec.reason_code >= 128 => 2,
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 0 => 1,
+            $.mqtt.pubrel != null and $.mqtt.pubrel.reason_code == 146 => 2,
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 0 => 1,
+            $.mqtt.pubcomp != null and $.mqtt.pubcomp.reason_code == 146 => 2,
+            $.mqtt.connect != null => 1,
+            $.mqtt.subscribe != null => 1,
+            $.mqtt.suback != null => 1,
+            $.mqtt.unsubscribe != null => 1,
+            $.mqtt.unsuback != null => 1,
+            $.mqtt.publish != null => 1,
+            $.mqtt.disconnect != null => 1,
+            $.mqtt.auth != null and $.mqtt.auth.reason_code == 0 => 1,
+            $.mqtt.auth != null and $.mqtt.auth.reason_code != 0 => 99,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          traffic=dict(
+            bytes=case(
+              $.mqtt.publish != null and $.mqtt.publish.skipped_length != null => $.mqtt.publish.skipped_length,
+              _ => null
+            )
+          ),
+          type_name=case(
+            $.mqtt.connect != null => 'Network Activity: Open',
+            $.mqtt.connack != null => 'Network Activity: Open',
+            $.mqtt.disconnect != null => 'Network Activity: Close',
+            $.mqtt.unsubscribe != null => 'Network Activity: Close',
+            $.mqtt.unsuback != null => 'Network Activity: Close',
+            $.mqtt.publish != null => 'Network Activity: Traffic',
+            $.mqtt.puback != null => 'Network Activity: Traffic',
+            $.mqtt.pubrec != null => 'Network Activity: Traffic',
+            $.mqtt.pubrel != null => 'Network Activity: Traffic',
+            $.mqtt.pubcomp != null => 'Network Activity: Traffic',
+            $.mqtt.subscribe != null => 'Network Activity: Listen',
+            $.mqtt.suback != null => 'Network Activity: Listen',
+            $.mqtt.auth != null => 'Network Activity: Other',
+            _ => 'Network Activity: Unknown'
+          ),
+          type_uid=case(
+            $.mqtt.connect != null => 400101,
+            $.mqtt.connack != null => 400101,
+            $.mqtt.disconnect != null => 400102,
+            $.mqtt.unsubscribe != null => 400102,
+            $.mqtt.unsuback != null => 400102,
+            $.mqtt.publish != null => 400106,
+            $.mqtt.puback != null => 400106,
+            $.mqtt.pubrec != null => 400106,
+            $.mqtt.pubrel != null => 400106,
+            $.mqtt.pubcomp != null => 400106,
+            $.mqtt.subscribe != null => 400107,
+            $.mqtt.suback != null => 400107,
+            $.mqtt.auth != null => 400199,
+            _ => 400100
+          ),
+          unmapped=dict(
+            pcap_cnt=$.pcap_cnt
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: MQTT eval
+  - id: node_1765977619817
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.pkt_src == 'stream (flow timeout)' => 'Unknown',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.pkt_src == "stream (flow timeout)" => 0,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          duration=case(
+            $.netflow.start != null and $.netflow.end != null => ts_str_to_epoch($.netflow.end, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ") - ts_str_to_epoch($.netflow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            _ => null
+          ),
+          end_time=ts_str_to_epoch($.netflow.end, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          is_src_dst_assignment_known=false,
+          message=case(
+            $.pkt_src != null and $.event_type != null => upper($.event_type) + " event from " + $.pkt_src,
+            $.event_type != null => upper($.event_type) + " event",
+            _ => "Network flow event"
+          ),
+          metadata=dict(
+            log_name=$.event_type,
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            version="1.6.0"
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          start_time=ts_str_to_epoch($.netflow.start, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          status='Success',
+          status_detail=$.pkt_src,
+          status_id=1,
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=case(
+            str_contains($.timestamp, "+") => parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2)),
+            str_contains($.timestamp, "-") and size_of($.timestamp) > 10 => -(parse_int(substr($.timestamp, size_of($.timestamp) - 4, 2)) * 60 + parse_int(substr($.timestamp, size_of($.timestamp) - 2, 2))),
+            _ => 0
+          ),
+          traffic=dict(
+            bytes=$.netflow.bytes,
+            packets=$.netflow.pkts
+          ),
+          type_name='Network Activity: Traffic',
+          type_uid=400106,
+          unmapped=dict(
+            flow_id=$.flow_id,
+            pcap_cnt=$.pcap_cnt
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: netflow eval
+  - id: node_1765977657501
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            str_contains(lower($['pgsql']['request']['simple_query']), 'select') => 1,
+            str_contains(lower($['pgsql']['request']['simple_query']), 'insert') => 6,
+            str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 2,
+            str_contains(lower($['pgsql']['request']['simple_query']), 'delete') => 7,
+            _ => 99
+          ),
+          activity_name=case(
+            str_contains(lower($['pgsql']['request']['simple_query']), 'select') => 'Read',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'insert') => 'Create',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 'Update',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'delete') => 'Delete',
+            _ => 'Other'
+          ),
+          actor=dict(
+            process=dict(
+              pid=$['pgsql']['request']['process_id']
+            ),
+            session=dict(
+              created_time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+              uid=to_str($['pgsql']['request']['secret_key'])
+            ),
+            user=dict(
+              name=$['pgsql']['request']['startup_parameters']['user'],
+              type='User',
+              type_id=1
+            )
+          ),
+          category_name='Application Activity',
+          category_uid=6,
+          class_name='Datastore Activity',
+          class_uid=6005,
+          database=dict(
+            name=case(
+              $['pgsql']['request']['startup_parameters']['optional_parameters'] != null => (
+            arr_foreach(
+              $['pgsql']['request']['startup_parameters']['optional_parameters'],
+              param,
+              case(
+                param['database'] != null => param['database'],
+                _ => null
+              )
+            )[0]
+          ),
+              _ => null
+            ),
+            type='Relational',
+            type_id=1
+          ),
+          dst_endpoint=dict(
+            ip=$['dest_ip'],
+            port=$['dest_port'],
+            type='Server',
+            type_id=1
+          ),
+          message=$['pgsql']['response']['message'],
+          metadata=dict(
+            event_code=$['event_type'],
+            log_name='pgsql',
+            log_provider='Suricata',
+            logged_time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$['timestamp'],
+            product=dict(
+              feature=dict(
+                name='PostgreSQL Protocol Analysis'
+              ),
+              name='Suricata',
+              vendor_name='OISF'
+            ),
+            sequence=$['pcap_cnt'],
+            uid=to_str($['flow_id']),
+            version="1.6.0"
+          ),
+          query_info=case($['pgsql']['request']['simple_query'] != null => dict(query_string=$['pgsql']['request']['simple_query'], data=dict(data_rows=$['pgsql']['response']['data_rows'], field_count=$['pgsql']['response']['field_count'], command_completed=$['pgsql']['response']['command_completed']), bytes=$['pgsql']['response']['data_size']), _ => null),
+          severity=case(
+            $['pgsql']['response']['severity_non_localizable'] == 'ERROR' => 'High',
+            $['pgsql']['response']['severity_non_localizable'] == 'FATAL' => 'Fatal',
+            $['pgsql']['response']['severity_non_localizable'] == 'PANIC' => 'Critical',
+            $['pgsql']['response']['severity_non_localizable'] == 'WARNING' => 'Medium',
+            $['pgsql']['response']['severity_non_localizable'] == 'NOTICE' => 'Low',
+            $['pgsql']['response']['severity_non_localizable'] == 'INFO' => 'Informational',
+            $['pgsql']['response']['severity_non_localizable'] == 'LOG' => 'Informational',
+            $['pgsql']['response']['severity_non_localizable'] == 'DEBUG' => 'Informational',
+            _ => 'Unknown'
+          ),
+          severity_id=case(
+            $['pgsql']['response']['severity_non_localizable'] == 'ERROR' => 4,
+            $['pgsql']['response']['severity_non_localizable'] == 'FATAL' => 6,
+            $['pgsql']['response']['severity_non_localizable'] == 'PANIC' => 5,
+            $['pgsql']['response']['severity_non_localizable'] == 'WARNING' => 3,
+            $['pgsql']['response']['severity_non_localizable'] == 'NOTICE' => 2,
+            $['pgsql']['response']['severity_non_localizable'] == 'INFO' => 1,
+            $['pgsql']['response']['severity_non_localizable'] == 'LOG' => 1,
+            $['pgsql']['response']['severity_non_localizable'] == 'DEBUG' => 1,
+            _ => 0
+          ),
+          src_endpoint=dict(
+            ip=$['src_ip'],
+            port=$['src_port']
+          ),
+          status=case(
+            $['pgsql']['response']['message'] == 'authentication_ok' => 'Success',
+            $['pgsql']['response']['command_completed'] != null => 'Success',
+            $['pgsql']['response']['severity_non_localizable'] == 'ERROR' => 'Failure',
+            $['pgsql']['response']['severity_non_localizable'] == 'FATAL' => 'Failure',
+            $['pgsql']['response']['severity_non_localizable'] == 'PANIC' => 'Failure',
+            $['pgsql']['response']['code'] != null => 'Failure',
+            _ => 'Other'
+          ),
+          status_code=$['pgsql']['response']['code'],
+          status_detail=case(
+            $['pgsql']['response']['message'] != null and $['pgsql']['response']['code'] != null => to_str($['pgsql']['response']['message']) + ' (Code: ' + to_str($['pgsql']['response']['code']) + ')',
+            $['pgsql']['response']['message'] != null => to_str($['pgsql']['response']['message']),
+            $['pgsql']['response']['code'] != null => 'Error Code: ' + to_str($['pgsql']['response']['code']),
+            $['pgsql']['response']['routine'] != null => 'Routine: ' + to_str($['pgsql']['response']['routine']),
+            _ => null
+          ),
+          status_id=case(
+            $['pgsql']['response']['message'] == 'authentication_ok' => 1,
+            $['pgsql']['response']['command_completed'] != null => 1,
+            $['pgsql']['response']['severity_non_localizable'] == 'ERROR' => 2,
+            $['pgsql']['response']['severity_non_localizable'] == 'FATAL' => 2,
+            $['pgsql']['response']['severity_non_localizable'] == 'PANIC' => 2,
+            $['pgsql']['response']['code'] != null => 2,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($['timestamp'], "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=parse_int(substr($['timestamp'], -5, 3)) * 60 + parse_int(substr($['timestamp'], -2)),
+          type=case(
+            str_contains(lower($['pgsql']['request']['simple_query']), 'from') or str_contains(lower($['pgsql']['request']['simple_query']), 'into') or str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 'Table',
+            $['pgsql']['request']['startup_parameters']['optional_parameters'] != null => 'Database',
+            _ => 'Unknown'
+          ),
+          type_id=case(
+            str_contains(lower($['pgsql']['request']['simple_query']), 'from') or str_contains(lower($['pgsql']['request']['simple_query']), 'into') or str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 3,
+            $['pgsql']['request']['startup_parameters']['optional_parameters'] != null => 1,
+            _ => 0
+          ),
+          type_name=case(
+            str_contains(lower($['pgsql']['request']['simple_query']), 'select') => 'Datastore Activity: Read',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'insert') => 'Datastore Activity: Create',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 'Datastore Activity: Update',
+            str_contains(lower($['pgsql']['request']['simple_query']), 'delete') => 'Datastore Activity: Delete',
+            _ => 'Datastore Activity: Other'
+          ),
+          type_uid=6005 * 100 + case(str_contains(lower($['pgsql']['request']['simple_query']), 'select') => 1, str_contains(lower($['pgsql']['request']['simple_query']), 'insert') => 6, str_contains(lower($['pgsql']['request']['simple_query']), 'update') => 2, str_contains(lower($['pgsql']['request']['simple_query']), 'delete') => 7, _ => 99),
+          unmapped=dict(
+            pkt_src=$.pkt_src,
+            proto=$.proto
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: pgsql eval
+  - id: node_1765977695706
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.pop3.request.command == "USER" => 2,
+            $.pop3.request.command == "PASS" => 2,
+            $.pop3.request.command == "RETR" => 2,
+            $.pop3.request.command == "DELE" => 2,
+            $.pop3.request.command == "LIST" => 2,
+            $.pop3.request.command == "STAT" => 2,
+            $.pop3.request.command == "QUIT" => 2,
+            _ => 99
+          ),
+          activity_name=case(
+            $.pop3.request.command == 'USER' => 'Receive',
+            $.pop3.request.command == 'PASS' => 'Receive',
+            $.pop3.request.command == 'RETR' => 'Receive',
+            $.pop3.request.command == 'DELE' => 'Receive',
+            $.pop3.request.command == 'LIST' => 'Receive',
+            $.pop3.request.command == 'STAT' => 'Receive',
+            $.pop3.request.command == 'QUIT' => 'Receive',
+            _ => 'Other'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Email Activity',
+          class_uid=4009,
+          command=$.pop3.request.command,
+          direction=case(
+            $.src_ip == "172.18.0.1" and $.dest_ip == "172.18.0.2" => 'Internal',
+            _ => 'Unknown'
+          ),
+          direction_id=case(
+            $.src_ip == "172.18.0.1" and $.dest_ip == "172.18.0.2" => 3,
+            _ => 0
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $.pop3.response.header != null => $.pop3.response.header,
+            $.pop3.request.command != null => upper($.pop3.request.command),
+            _ => "POP3 Event"
+          ),
+          message_trace_uid=to_str($.flow_id),
+          metadata=dict(
+            event_code=$.event_type,
+            log_name='suricata',
+            log_provider='Suricata',
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name='Suricata',
+              vendor_name='OISF'
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          protocol_name="POP3",
+          severity=case(
+            $.pop3.response.success == true => 'Informational',
+            $.pop3.response.success == false => 'High',
+            _ => 'Unknown'
+          ),
+          severity_id=case(
+            $.pop3.response.success == true => 1,
+            $.pop3.response.success == false => 4,
+            _ => 0
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.pop3.response.success == true => 'Success',
+            $.pop3.response.success == false => 'Failure',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.pop3.response.status != null => $.pop3.response.status,
+            _ => null
+          ),
+          status_detail=$.pop3.response.header,
+          status_id=case(
+            $.pop3.response.success == true => 1,
+            $.pop3.response.success == false => 2,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+          $.pop3.request.command == 'USER' => 'Email Activity: Receive',
+          $.pop3.request.command == 'PASS' => 'Email Activity: Receive',
+          $.pop3.request.command == 'RETR' => 'Email Activity: Receive',
+          $.pop3.request.command == 'DELE' => 'Email Activity: Receive',
+          $.pop3.request.command == 'LIST' => 'Email Activity: Receive',
+          $.pop3.request.command == 'STAT' => 'Email Activity: Receive',
+          $.pop3.request.command == 'QUIT' => 'Email Activity: Receive',
+          _ => 'Email Activity: Other'
+        ),
+          type_uid=4009 * 100 + case(
+          $.pop3.request.command == "USER" => 2,
+          $.pop3.request.command == "PASS" => 2,
+          $.pop3.request.command == "RETR" => 2,
+          $.pop3.request.command == "DELE" => 2,
+          $.pop3.request.command == "LIST" => 2,
+          $.pop3.request.command == "STAT" => 2,
+          $.pop3.request.command == "QUIT" => 2,
+          _ => 99
+        ),
+          unmapped=dict(
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src,
+            proto=$.proto
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: POP3 eval
+  - id: node_1765977734080
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          app_name=case(
+            $.quic != null and $.quic.ua != null => $.quic.ua,
+            _ => null
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction='Unknown',
+            direction_id=case(
+              $.pkt_src == 'stream (flow timeout)' => 0,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == 'tcp' => 6,
+              lower($.proto) == 'udp' => 17,
+              lower($.proto) == 'icmp' => 1,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          enrichments=case(
+            $.quic != null and ($.quic.ja3 != null or $.quic.ja3s != null or $.quic.ja4 != null or $.quic.cyu != null) => arr_flatten(array(
+            case(
+              $.quic.ja3 != null => array(dict(
+                name='ja3',
+                type='fingerprint',
+                value=$.quic.ja3.hash,
+                data=dict(
+                  hash=$.quic.ja3.hash,
+                  string=$.quic.ja3.string
+                )
+              )),
+              _ => array()
+            ),
+            case(
+              $.quic.ja3s != null => array(dict(
+                name='ja3s',
+                type='fingerprint',
+                value=$.quic.ja3s.hash,
+                data=dict(
+                  hash=$.quic.ja3s.hash,
+                  string=$.quic.ja3s.string
+                )
+              )),
+              _ => array()
+            ),
+            case(
+              $.quic.ja4 != null => array(dict(
+                name='ja4',
+                type='fingerprint',
+                value=$.quic.ja4,
+                data=dict(
+                  fingerprint=$.quic.ja4
+                )
+              )),
+              _ => array()
+            ),
+            case(
+              $.quic.cyu != null and size_of($.quic.cyu) > 0 => arr_foreach(
+                $.quic.cyu,
+                cyu_item,
+                dict(
+                  name='cyu',
+                  type='fingerprint',
+                  value=cyu_item.hash,
+                  data=dict(
+                    hash=cyu_item.hash,
+                    string=cyu_item.string
+                  )
+                )
+              ),
+              _ => array()
+            )
+          )),
+            _ => null
+          ),
+          is_src_dst_assignment_known=false,
+          message=case(
+            $.quic.sni != null => $.quic.sni,
+            $.quic.ua != null => $.quic.ua,
+            _ => 'QUIC connection event'
+          ),
+          metadata=dict(
+            log_name='quic',
+            log_provider='Suricata',
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name='Suricata',
+              vendor_name='OISF'
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          observables=case(
+            $.quic != null and $.quic.sni != null => array(
+            dict(
+              name='url.hostname',
+              type='Hostname',
+              type_id=1,
+              value=$.quic.sni
+            ),
+            dict(
+              name='src_endpoint.ip',
+              type='IP Address',
+              type_id=2,
+              value=$.src_ip
+            ),
+            dict(
+              name='dst_endpoint.ip',
+              type='IP Address',
+              type_id=2,
+              value=$.dest_ip
+            )
+          ),
+            _ => array(
+            dict(
+              name='src_endpoint.ip',
+              type='IP Address',
+              type_id=2,
+              value=$.src_ip
+            ),
+            dict(
+              name='dst_endpoint.ip',
+              type='IP Address',
+              type_id=2,
+              value=$.dest_ip
+            )
+          )
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.event_type == 'quic' => 'Success',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.quic != null and $.quic.version != null => to_str($.quic.version),
+            _ => null
+          ),
+          status_detail=case(
+            $.quic != null and $.quic.version != null => 'QUIC version: ' + to_str($.quic.version),
+            $.pkt_src != null => 'Packet source: ' + $.pkt_src,
+            _ => null
+          ),
+          status_id=case(
+            $.event_type == 'quic' => 1,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=case(
+            substr($.timestamp, -5, 1) == '+' => parse_int(substr($.timestamp, -4, 2)) * 60 + parse_int(substr($.timestamp, -2)),
+            substr($.timestamp, -5, 1) == '-' => -(parse_int(substr($.timestamp, -4, 2)) * 60 + parse_int(substr($.timestamp, -2))),
+            _ => 0
+          ),
+          traffic=dict(
+            packets=case(
+              $.pcap_cnt != null => $.pcap_cnt,
+              _ => null
+            )
+          ),
+          type_name='Network Activity: Traffic',
+          type_uid=400106,
+          url=dict(
+            hostname=$.quic.sni,
+            port=case(
+              $.quic.sni != null => 443,
+              _ => null
+            ),
+            scheme=case(
+              $.quic.sni != null => 'https',
+              _ => null
+            ),
+            url_string=case(
+              $.quic.sni != null => 'https://' + $.quic.sni,
+              _ => null
+            )
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: quic eval
+  - id: node_1765977800817
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.rdp['event_type'] == 'connect_request' => 3,
+            $.rdp['event_type'] == 'initial_request' => 1,
+            $.rdp['event_type'] == 'initial_response' => 2,
+            $.rdp['event_type'] == 'connect_response' => 4,
+            $.rdp['event_type'] == 'tls_handshake' => 5,
+            $.rdp['event_type'] == 'traffic' => 6,
+            $.rdp['event_type'] == 'disconnect' => 7,
+            $.rdp['event_type'] == 'reconnect' => 8,
+            _ => 99
+          ),
+          activity_name=case(
+            $.rdp['event_type'] == 'connect_request' => 'Connect Request',
+            $.rdp['event_type'] == 'initial_request' => 'Initial Request',
+            $.rdp['event_type'] == 'initial_response' => 'Initial Response',
+            $.rdp['event_type'] == 'connect_response' => 'Connect Response',
+            $.rdp['event_type'] == 'tls_handshake' => 'TLS Handshake',
+            $.rdp['event_type'] == 'traffic' => 'Traffic',
+            $.rdp['event_type'] == 'disconnect' => 'Disconnect',
+            $.rdp['event_type'] == 'reconnect' => 'Reconnect',
+            _ => 'Other'
+          ),
+          capabilities=$.rdp.client.capabilities,
+          category_name='Network Activity',
+          category_uid=4,
+          certificate_chain=$.rdp['x509_serials'],
+          class_name='RDP Activity',
+          class_uid=4005,
+          connection_info=dict(
+            direction=case(
+              $.in_iface != null => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.in_iface != null => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == 'tcp' => 6,
+              lower($.proto) == 'udp' => 17,
+              lower($.proto) == 'icmp' => 1,
+              _ => null
+            )
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          identifier_cookie=$.rdp.cookie,
+          message=case(
+            $.rdp['event_type'] == 'connect_request' => 'RDP connection request initiated',
+            $.rdp['event_type'] == 'initial_request' => 'RDP initial request',
+            $.rdp['event_type'] == 'initial_response' => 'RDP initial response',
+            $.rdp['event_type'] == 'connect_response' => 'RDP connection response',
+            $.rdp['event_type'] == 'tls_handshake' => 'RDP TLS handshake',
+            $.rdp['event_type'] == 'traffic' => 'RDP traffic',
+            $.rdp['event_type'] == 'disconnect' => 'RDP disconnection',
+            $.rdp['event_type'] == 'reconnect' => 'RDP reconnection',
+            _ => 'RDP event'
+          ),
+          metadata=dict(
+            event_code=$.rdp['event_type'],
+            log_name="rdp",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          protocol_ver=$.rdp.protocol,
+          request=dict(
+            data=dict(
+              channels=$.rdp.channels,
+              client=$.rdp.client,
+              cookie=$.rdp.cookie,
+              event_type=$.rdp['event_type'],
+              protocol=$.rdp.protocol,
+              server_supports=$.rdp.server_supports,
+              x509_serials=$.rdp.x509_serials
+            ),
+            uid=to_str($.rdp.tx_id)
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            hw_info=dict(
+              desktop_display=dict(
+                color_depth=$.rdp.client.color_depth,
+                physical_height=$.rdp.client.desktop_height,
+                physical_width=$.rdp.client.desktop_width
+              ),
+              keyboard_info=dict(
+                function_keys=$.rdp.client.function_keys,
+                keyboard_layout=$.rdp.client.keyboard_layout,
+                keyboard_type=$.rdp.client.keyboard_type
+              )
+            ),
+            ip=$.src_ip,
+            name=$.rdp.client.client_name,
+            os=dict(
+              name=$.rdp.client.build,
+              type=case(
+                str_contains(lower($.rdp.client.build), 'windows') => 'Windows',
+                _ => 'Other'
+              ),
+              type_id=case(
+                str_contains(lower($.rdp.client.build), 'windows') => 100,
+                _ => 99
+              )
+            ),
+            port=$.src_port,
+            uid=$.rdp.client.id
+          ),
+          status=case(
+            $.rdp['event_type'] == 'connect_response' => 'Success',
+            $.rdp['event_type'] == 'initial_response' => 'Success',
+            $.rdp['event_type'] == 'tls_handshake' => 'Success',
+            $.rdp['event_type'] == 'traffic' => 'Success',
+            $.rdp['event_type'] == 'reconnect' => 'Success',
+            $.rdp['event_type'] == 'disconnect' => 'Success',
+            _ => 'Unknown'
+          ),
+          status_detail=case(
+            $.rdp['event_type'] == 'connect_request' => $.rdp.protocol,
+            $.rdp['event_type'] == 'initial_request' => $.rdp.protocol,
+            $.rdp['event_type'] == 'initial_response' => $.rdp.protocol,
+            $.rdp['event_type'] == 'connect_response' => $.rdp.protocol,
+            $.rdp['event_type'] == 'tls_handshake' => $.rdp.protocol,
+            $.rdp['event_type'] == 'traffic' => $.rdp.protocol,
+            $.rdp['event_type'] == 'disconnect' => $.rdp.protocol,
+            $.rdp['event_type'] == 'reconnect' => $.rdp.protocol,
+            _ => null
+          ),
+          status_id=case(
+            $.rdp['event_type'] == 'connect_response' => 1,
+            $.rdp['event_type'] == 'initial_response' => 1,
+            $.rdp['event_type'] == 'tls_handshake' => 1,
+            $.rdp['event_type'] == 'traffic' => 1,
+            $.rdp['event_type'] == 'reconnect' => 1,
+            $.rdp['event_type'] == 'disconnect' => 1,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            $.rdp['event_type'] == 'connect_request' => 'RDP Activity: Connect Request',
+            $.rdp['event_type'] == 'initial_request' => 'RDP Activity: Initial Request',
+            $.rdp['event_type'] == 'initial_response' => 'RDP Activity: Initial Response',
+            $.rdp['event_type'] == 'connect_response' => 'RDP Activity: Connect Response',
+            $.rdp['event_type'] == 'tls_handshake' => 'RDP Activity: TLS Handshake',
+            $.rdp['event_type'] == 'traffic' => 'RDP Activity: Traffic',
+            $.rdp['event_type'] == 'disconnect' => 'RDP Activity: Disconnect',
+            $.rdp['event_type'] == 'reconnect' => 'RDP Activity: Reconnect',
+            _ => 'RDP Activity: Other'
+          ),
+          type_uid=4005 * 100 + case(
+            $.rdp['event_type'] == 'connect_request' => 3,
+            $.rdp['event_type'] == 'initial_request' => 1,
+            $.rdp['event_type'] == 'initial_response' => 2,
+            $.rdp['event_type'] == 'connect_response' => 4,
+            $.rdp['event_type'] == 'tls_handshake' => 5,
+            $.rdp['event_type'] == 'traffic' => 6,
+            $.rdp['event_type'] == 'disconnect' => 7,
+            $.rdp['event_type'] == 'reconnect' => 8,
+            _ => 99
+          ),
+          unmapped=dict(
+            event_type=$.event_type,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: RDP eval
+  - id: node_1765977840490
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          app_name="Suricata",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='Network Activity',
+          class_uid=4001,
+          connection_info=dict(
+            direction=case(
+              $.src_ip == "192.168.100.237" => 'Outbound',
+              _ => 'Inbound'
+            ),
+            direction_id=case(
+              $.src_ip == "192.168.100.237" => 2,
+              _ => 1
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              _ => null
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          is_src_dst_assignment_known=true,
+          message=case(
+            $.rfb != null => "RFB connection from " + $.src_ip + ":" + to_str($.src_port) + " to " + $.dest_ip + ":" + to_str($.dest_port) + " - Protocol: " + to_str($.rfb.server_protocol_version.major) + "." + to_str($.rfb.server_protocol_version.minor) + ", Authentication: " + $.rfb.authentication.security_result + ", Screen: " + $.rfb.framebuffer.name + " (" + to_str($.rfb.framebuffer.width) + "x" + to_str($.rfb.framebuffer.height) + ")",
+            _ => "RFB event detected"
+          ),
+          metadata=dict(
+            event_code=$.event_type,
+            log_name="rfb",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          raw_data=to_str($),
+          severity="Informational",
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.rfb.authentication.security_result == 'OK' => 'Success',
+            $.rfb.authentication.security_result != null => 'Failure',
+            _ => 'Unknown'
+          ),
+          status_code=case(
+            $.rfb.authentication.security_result == "OK" => "0",
+            $.rfb.authentication.security_result != null => "1",
+            _ => null
+          ),
+          status_detail=case(
+            $.rfb.authentication.security_result == "OK" => "VNC authentication successful using security type " + to_str($.rfb.authentication.security_type) + ", screen shared: " + to_str($.rfb.screen_shared),
+            $.rfb.authentication.security_result != null => "VNC authentication result: " + $.rfb.authentication.security_result + " (security type: " + to_str($.rfb.authentication.security_type) + ")",
+            _ => null
+          ),
+          status_id=case(
+            $.rfb.authentication.security_result == "OK" => 1,
+            $.rfb.authentication.security_result != null => 2,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name='Network Activity: Traffic',
+          type_uid=400106,
+          unmapped=dict(
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: RFB eval
+  - id: node_1765977913418
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.smb.disposition == "FILE_OPEN" => 2,
+            $.smb.disposition == "FILE_SUPERSEDE" => 1,
+            $.smb.disposition == "FILE_CREATE" => 3,
+            $.smb.disposition == "FILE_OPEN_IF" => 4,
+            $.smb.disposition == "FILE_OVERWRITE" => 5,
+            $.smb.disposition == "FILE_OVERWRITE_IF" => 6,
+            _ => 99
+          ),
+          activity_name=case(
+            $.smb.disposition == 'FILE_OPEN' => 'File Open',
+            $.smb.disposition == 'FILE_SUPERSEDE' => 'File Supersede',
+            $.smb.disposition == 'FILE_CREATE' => 'File Create',
+            $.smb.disposition == 'FILE_OPEN_IF' => 'File Open If',
+            $.smb.disposition == 'FILE_OVERWRITE' => 'File Overwrite',
+            $.smb.disposition == 'FILE_OVERWRITE_IF' => 'File Overwrite If',
+            _ => 'Other'
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='SMB Activity',
+          class_uid=4006,
+          client_dialects=$.smb.client_dialects,
+          command=$.smb.command,
+          connection_info=dict(
+            direction=case(
+              $.in_iface != null => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.in_iface != null => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => 99
+            ),
+            session=dict(
+              is_remote=true,
+              uid=to_str($.smb.session_id)
+            )
+          ),
+          dce_rpc=case(
+            $.smb.dcerpc != null => dict(
+            opnum=$.smb.dcerpc.opnum,
+            rpc_interface=case(
+              $.smb.dcerpc.interfaces != null and size_of($.smb.dcerpc.interfaces) > 0 => dict(
+                uuid=$.smb.dcerpc.interfaces[0].uuid,
+                version=$.smb.dcerpc.interfaces[0].version,
+                ack_result=$.smb.dcerpc.interfaces[0].ack_result,
+                ack_reason=$.smb.dcerpc.interfaces[0].ack_reason
+              ),
+              _ => null
+            )
+          ),
+            _ => null
+          ),
+          dialect=$.smb.dialect,
+          dst_endpoint=dict(
+            hostname=case(
+              $.smb.share != null => str_split(substr($.smb.share, 2), "\\\\")[0],
+              _ => null
+            ),
+            ip=$.dest_ip,
+            name=case(
+              $.smb.share != null => str_split(substr($.smb.share, 2), "\\\\")[0],
+              _ => null
+            ),
+            os=dict(
+              name=$.smb.response.native_os,
+              type=case(
+                $.smb.response.native_os != null and str_contains(lower($.smb.response.native_os), 'windows') => 'Windows',
+                _ => 'Other'
+              ),
+              type_id=case(
+                $.smb.response.native_os != null and str_contains(lower($.smb.response.native_os), "windows") => 100,
+                _ => 99
+              ),
+              version=$.smb.response.native_lm
+            ),
+            port=$.dest_port
+          ),
+          file=dict(
+            accessed_time=case(
+              $.smb.accessed != null and $.smb.accessed != 0 => $.smb.accessed,
+              _ => null
+            ),
+            created_time=case(
+              $.smb.created != null and $.smb.created != 0 => $.smb.created,
+              _ => null
+            ),
+            modified_time=case(
+              $.smb.modified != null and $.smb.modified != 0 => $.smb.modified,
+              _ => null
+            ),
+            name=$.smb.filename,
+            parent_folder=case(
+              $.smb.share != null => str_split($.smb.share, '\\\\')[1],
+              _ => null
+            ),
+            path=case(
+              $.smb.share != null and $.smb.filename != null => str_split($.smb.share, '\\\\')[1] + '\\' + $.smb.filename,
+              $.smb.filename != null => $.smb.filename,
+              _ => null
+            ),
+            size=case(
+              $.smb.size != null and $.smb.size != 0 => $.smb.size,
+              _ => null
+            ),
+            type=case(
+              $.smb.share_type == 'FILE' => 'Regular File',
+              $.smb.share_type == 'PIPE' => 'Named Pipe',
+              _ => 'Unknown'
+            ),
+            type_id=case(
+              $.smb.share_type == 'FILE' => 1,
+              $.smb.share_type == 'PIPE' => 6,
+              _ => 0
+            ),
+            uid=$.smb.fuid
+          ),
+          message=case(
+            $.smb.command != null and $.smb.status != null and $.smb.filename != null => $.smb.command + ' operation on ' + $.smb.filename + ' with status ' + $.smb.status,
+            $.smb.command != null and $.smb.status != null => $.smb.command + ' operation with status ' + $.smb.status,
+            $.smb.command != null and $.smb.filename != null => $.smb.command + ' operation on ' + $.smb.filename,
+            $.smb.command != null => $.smb.command + ' operation',
+            _ => 'SMB file activity'
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          observables=arr_flatten(array(
+          case(
+            $.src_ip != null => array(dict(
+              name="src_endpoint.ip",
+              type="IP Address",
+              type_id=2,
+              value=$.src_ip
+            )),
+            _ => array()
+          ),
+          case(
+            $.dest_ip != null => array(dict(
+              name="dst_endpoint.ip",
+              type="IP Address",
+              type_id=2,
+              value=$.dest_ip
+            )),
+            _ => array()
+          ),
+          case(
+            $.smb.filename != null => array(dict(
+              name="file.name",
+              type="File Name",
+              type_id=7,
+              value=$.smb.filename
+            )),
+            _ => array()
+          ),
+          case(
+            $.smb.fuid != null => array(dict(
+              name="file.uid",
+              type="Resource UID",
+              type_id=10,
+              value=$.smb.fuid
+            )),
+            _ => array()
+          ),
+          case(
+            $.smb.ntlmssp.user != null => array(dict(
+              name="src_endpoint.owner.name",
+              type="User Name",
+              type_id=4,
+              value=$.smb.ntlmssp.user
+            )),
+            _ => array()
+          ),
+          case(
+            $.smb.ntlmssp.domain != null => array(dict(
+              name="src_endpoint.domain",
+              type="Domain",
+              type_id=26,
+              value=$.smb.ntlmssp.domain
+            )),
+            _ => array()
+          )
+        )),
+          open_type=case(
+            $.smb.disposition == "FILE_OPEN" => "normal",
+            $.smb.disposition == "FILE_SUPERSEDE" => "supersede",
+            $.smb.disposition == "FILE_CREATE" => "create",
+            $.smb.disposition == "FILE_OPEN_IF" => "open_if",
+            $.smb.disposition == "FILE_OVERWRITE" => "overwrite",
+            $.smb.disposition == "FILE_OVERWRITE_IF" => "overwrite_if",
+            _ => null
+          ),
+          response=dict(
+            code=case($.smb.status_code != null => parse_int(substr($.smb.status_code, 2), 16), _ => null),
+            data=case(
+              $.smb.response != null => $.smb.response,
+              _ => null
+            ),
+            error=case(
+              $.smb.status != null and $.smb.status != 'STATUS_SUCCESS' => $.smb.status,
+              _ => null
+            ),
+            message=case(
+              $.smb.status != null => $.smb.status,
+              _ => null
+            )
+          ),
+          severity=case(
+            $.smb.status == "STATUS_SUCCESS" => 'Informational',
+            str_contains($.smb.status, "ERROR") => 'High',
+            str_contains($.smb.status, "DENIED") => 'High',
+            str_contains($.smb.status, "FAIL") => 'Medium',
+            _ => 'Unknown'
+          ),
+          severity_id=case(
+            $.smb.status == "STATUS_SUCCESS" => 1,
+            str_contains($.smb.status, "ERROR") => 4,
+            str_contains($.smb.status, "DENIED") => 4,
+            str_contains($.smb.status, "FAIL") => 3,
+            _ => 0
+          ),
+          share=$.smb.share,
+          share_type=case(
+            $.smb.share_type == 'FILE' => 'File',
+            $.smb.share_type == 'PIPE' => 'Pipe',
+            $.smb.share_type == 'PRINT' => 'Print',
+            $.smb.share_type != null => 'Other',
+            _ => 'Unknown'
+          ),
+          share_type_id=case(
+            $.smb.share_type == "FILE" => 1,
+            $.smb.share_type == "PIPE" => 2,
+            $.smb.share_type == "PRINT" => 3,
+            $.smb.share_type != null => 99,
+            _ => 0
+          ),
+          src_endpoint=dict(
+            domain=case(
+              $.smb.ntlmssp.domain != null => $.smb.ntlmssp.domain,
+              _ => null
+            ),
+            hostname=case(
+              $.smb.ntlmssp.host != null => $.smb.ntlmssp.host,
+              _ => null
+            ),
+            interface_name=case(
+              $.in_iface != null => $.in_iface,
+              _ => null
+            ),
+            ip=$.src_ip,
+            os=dict(
+              name=case(
+                $.smb.request.native_os != null => $.smb.request.native_os,
+                _ => null
+              ),
+              type=case(
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'windows') => 'Windows',
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'unix') => 'Linux',
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'linux') => 'Linux',
+                _ => 'Other'
+              ),
+              type_id=case(
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'windows') => 100,
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'unix') => 200,
+                $.smb.request.native_os != null and str_contains(lower($.smb.request.native_os), 'linux') => 200,
+                _ => 99
+              ),
+              version=case(
+                $.smb.request.native_lm != null => $.smb.request.native_lm,
+                _ => null
+              )
+            ),
+            owner=dict(
+              domain=case(
+                $.smb.ntlmssp.domain != null => $.smb.ntlmssp.domain,
+                _ => null
+              ),
+              name=case(
+                $.smb.ntlmssp.user != null => $.smb.ntlmssp.user,
+                _ => null
+              ),
+              type=case(
+                $.smb.ntlmssp.user != null and lower($.smb.ntlmssp.user) == 'administrator' => 'Admin',
+                $.smb.ntlmssp.user != null => 'User',
+                _ => 'Unknown'
+              ),
+              type_id=case(
+                $.smb.ntlmssp.user != null and lower($.smb.ntlmssp.user) == 'administrator' => 2,
+                $.smb.ntlmssp.user != null => 1,
+                _ => 0
+              )
+            ),
+            port=$.src_port
+          ),
+          status=case(
+            $.smb.status == "STATUS_SUCCESS" => 'Success',
+            str_contains($.smb.status, "ERROR") => 'Failure',
+            str_contains($.smb.status, "DENIED") => 'Failure',
+            str_contains($.smb.status, "FAIL") => 'Failure',
+            $.smb.status != null => 'Other',
+            _ => 'Unknown'
+          ),
+          status_code=$.smb.status_code,
+          status_detail=$.smb.status,
+          status_id=case(
+            $.smb.status == "STATUS_SUCCESS" => 1,
+            str_contains($.smb.status, "ERROR") => 2,
+            str_contains($.smb.status, "DENIED") => 2,
+            str_contains($.smb.status, "FAIL") => 2,
+            $.smb.status != null => 99,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=case(
+            str_contains($.timestamp, '+') => parse_int(substr($.timestamp, -4, 2)) * 60 + parse_int(substr($.timestamp, -2)),
+            str_contains($.timestamp, '-') => -(parse_int(substr($.timestamp, -4, 2)) * 60 + parse_int(substr($.timestamp, -2))),
+            _ => 0
+          ),
+          traffic=dict(
+            bytes=case(
+              $.smb.size != null and $.smb.size > 0 => $.smb.size,
+              _ => null
+            )
+          ),
+          tree_uid=to_str($.smb.tree_id),
+          type_name=case(
+            400600 + $.activity_id == 400600 => 'SMB Activity: Unknown',
+            400600 + $.activity_id == 400601 => 'SMB Activity: File Supersede',
+            400600 + $.activity_id == 400602 => 'SMB Activity: File Open',
+            400600 + $.activity_id == 400603 => 'SMB Activity: File Create',
+            400600 + $.activity_id == 400604 => 'SMB Activity: File Open If',
+            400600 + $.activity_id == 400605 => 'SMB Activity: File Overwrite',
+            400600 + $.activity_id == 400606 => 'SMB Activity: File Overwrite If',
+            400600 + $.activity_id == 400699 => 'SMB Activity: Other',
+            _ => 'SMB Activity: Unknown'
+          ),
+          type_uid=case($.smb.disposition == "FILE_SUPERSEDE" => 400601, $.smb.disposition == "FILE_OPEN" => 400602, $.smb.disposition == "FILE_CREATE" => 400603, $.smb.disposition == "FILE_OPEN_IF" => 400604, $.smb.disposition == "FILE_OVERWRITE" => 400605, $.smb.disposition == "FILE_OVERWRITE_IF" => 400606, _ => 400699),
+          unmapped=dict(
+            event_type=$.event_type,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: SMB eval
+  - id: node_1765977931659
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Traffic',
+          app_name=case(
+            $.ssh.client.software_version != null => $.ssh.client.software_version,
+            $.ssh.server.software_version != null => $.ssh.server.software_version,
+            _ => "SSH"
+          ),
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='SSH Activity',
+          class_uid=4007,
+          client_hassh=dict(
+            algorithm=$.ssh.client.hassh.string,
+            fingerprint=dict(
+              algorithm='MD5',
+              algorithm_id=1,
+              value=$.ssh.client.hassh.hash
+            )
+          ),
+          connection_info=dict(
+            direction=case(
+              $.in_iface != null => 'Inbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.in_iface != null => 1,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => null
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          message=case(
+            $.ssh.client.software_version != null and $.ssh.server.software_version != null => "SSH connection established: client " + $.ssh.client.software_version + " to server " + $.ssh.server.software_version + " (protocol " + $.ssh.client.proto_version + ")",
+            $.ssh.client.software_version != null => "SSH client connection: " + $.ssh.client.software_version,
+            $.ssh.server.software_version != null => "SSH server connection: " + $.ssh.server.software_version,
+            _ => "SSH connection event"
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          protocol_ver=$.ssh.client.proto_version,
+          raw_data=to_str($),
+          server_hassh=dict(
+            algorithm=$.ssh.server.hassh.string,
+            fingerprint=dict(
+              algorithm='MD5',
+              algorithm_id=1,
+              value=$.ssh.server.hassh.hash
+            )
+          ),
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status='Success',
+          status_detail=case(
+            $.ssh.client.software_version != null and $.ssh.server.software_version != null => "SSH handshake completed between client (" + $.ssh.client.software_version + ") and server (" + $.ssh.server.software_version + ") using protocol version " + $.ssh.client.proto_version,
+            $.ssh.client.software_version != null => "SSH client software: " + $.ssh.client.software_version,
+            $.ssh.server.software_version != null => "SSH server software: " + $.ssh.server.software_version,
+            _ => "SSH connection established"
+          ),
+          status_id=1,
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type_name=case(
+            4007 * 100 + 6 == 400703 => 'SSH Activity: Reset',
+            4007 * 100 + 6 == 400706 => 'SSH Activity: Traffic',
+            4007 * 100 + 6 == 400700 => 'SSH Activity: Unknown',
+            4007 * 100 + 6 == 400701 => 'SSH Activity: Open',
+            4007 * 100 + 6 == 400702 => 'SSH Activity: Close',
+            4007 * 100 + 6 == 400799 => 'SSH Activity: Other',
+            4007 * 100 + 6 == 400704 => 'SSH Activity: Fail',
+            4007 * 100 + 6 == 400705 => 'SSH Activity: Refuse',
+            4007 * 100 + 6 == 400707 => 'SSH Activity: Listen',
+            _ => 'SSH Activity: Unknown'
+          ),
+          type_uid=4007 * 100 + 6,
+          unmapped=dict(
+            event_type=$.event_type,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: SSH eval
+  - id: node_1765978018946
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=case(
+            $.tftp.packet == "read" => 2,
+            $.tftp.packet == "write" => 1,
+            _ => 99
+          ),
+          activity_name=case(
+            $.tftp.packet == 'read' => 'Get',
+            $.tftp.packet == 'write' => 'Put',
+            _ => 'Other'
+          ),
+          app_name="TFTP",
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='FTP Activity',
+          class_uid=4008,
+          command=$.tftp.packet,
+          connection_info=dict(
+            direction=case(
+              $.src_ip == '192.168.100.237' => 'Outbound',
+              _ => 'Unknown'
+            ),
+            direction_id=case(
+              $.src_ip == '192.168.100.237' => 2,
+              _ => 0
+            ),
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == 'tcp' => 6,
+              lower($.proto) == 'udp' => 17,
+              lower($.proto) == 'icmp' => 1,
+              _ => 0
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          file=dict(
+            name=$.tftp.file,
+            type="Unknown",
+            type_id=0
+          ),
+          message=case(
+            $.tftp.packet == "read" => "TFTP read request for file: " + $.tftp.file + " in " + $.tftp.mode + " mode",
+            $.tftp.packet == "write" => "TFTP write request for file: " + $.tftp.file + " in " + $.tftp.mode + " mode",
+            $.tftp.packet == "data" => "TFTP data transfer for file: " + $.tftp.file,
+            $.tftp.packet == "ack" => "TFTP acknowledgment",
+            $.tftp.packet == "error" => "TFTP error",
+            _ => "TFTP " + $.tftp.packet + " operation for file: " + $.tftp.file
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          name=$.tftp.file,
+          port=$.dest_port,
+          severity='Informational',
+          severity_id=1,
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $.tftp.packet == "error" => 'Failure',
+            $.tftp.packet == "read" => 'Success',
+            $.tftp.packet == "write" => 'Success',
+            $.tftp.packet == "data" => 'Success',
+            $.tftp.packet == "ack" => 'Success',
+            _ => 'Other'
+          ),
+          status_detail=case(
+            $.tftp.packet == "read" => "Read request for file: " + $.tftp.file + " using " + $.tftp.mode + " mode",
+            $.tftp.packet == "write" => "Write request for file: " + $.tftp.file + " using " + $.tftp.mode + " mode",
+            $.tftp.packet == "data" => "Data transfer in progress for file: " + $.tftp.file,
+            $.tftp.packet == "ack" => "Acknowledgment received",
+            $.tftp.packet == "error" => "Error occurred during TFTP operation",
+            _ => "TFTP " + $.tftp.packet + " operation"
+          ),
+          status_id=case(
+            $.tftp.packet == "error" => 2,
+            $.tftp.packet == "read" => 1,
+            $.tftp.packet == "write" => 1,
+            $.tftp.packet == "data" => 1,
+            $.tftp.packet == "ack" => 1,
+            _ => 99
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=0,
+          type=case(
+            $.tftp.mode == "octet" => "Binary",
+            $.tftp.mode == "netascii" => "ASCII",
+            _ => "Other"
+          ),
+          type_name=case(
+            $.tftp.packet == 'read' => 'FTP Activity: Get',
+            $.tftp.packet == 'write' => 'FTP Activity: Put',
+            _ => 'FTP Activity: Other'
+          ),
+          type_uid=4008 * 100 + case($.tftp.packet == "read" => 2, $.tftp.packet == "write" => 1, _ => 99),
+          unmapped=dict(
+            event_type=$.event_type,
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: TFTP eval
+  - id: node_1765978051139
+    commandName: eval
+    config:
+      expression: |-
+        dict(
+          activity_id=6,
+          activity_name='Post',
+          category_name='Network Activity',
+          category_uid=4,
+          class_name='HTTP Activity',
+          class_uid=4002,
+          connection_info=dict(
+            protocol_name=lower($.proto),
+            protocol_num=case(
+              lower($.proto) == "tcp" => 6,
+              lower($.proto) == "udp" => 17,
+              lower($.proto) == "icmp" => 1,
+              _ => null
+            ),
+            protocol_ver=case(
+              $['tls']['version'] != null => $['tls']['version'],
+              _ => null
+            ),
+            uid=to_str($.flow_id)
+          ),
+          dst_endpoint=dict(
+            ip=$.dest_ip,
+            port=$.dest_port
+          ),
+          ja4_fingerprint_list=array(
+            dict(
+              raw_value=case($['tls']['ja3']['string'] != null => array(dict(value=$['tls']['ja3']['string'], algorithm="JA3", algorithm_id=99)), $['tls']['ja3s']['string'] != null => array(dict(value=$['tls']['ja3s']['string'], algorithm="JA3S", algorithm_id=99)), _ => array()),
+              type="JA3",
+              value=$['tls']['ja3']['hash']
+            ),
+            dict(
+              raw_value=case($.tls.ja3s.string != null => array(dict(value=$.tls.ja3s.hash, algorithm='JA3S', algorithm_id=99)), $.tls.ja3.string != null => array(dict(value=$.tls.ja3.hash, algorithm='JA3', algorithm_id=99)), _ => array()),
+              type="JA3S",
+              value=$['tls']['ja3s']['hash']
+            )
+          ),
+          message=case(
+            $.event_type == "tls" and $['tls']['sni'] != null => $['tls']['sni'],
+            $.event_type == "tls" and $['tls']['subject'] != null => $['tls']['subject'],
+            $.event_type != null => $.event_type,
+            _ => "Network event"
+          ),
+          metadata=dict(
+            log_name="suricata",
+            log_provider="Suricata IDS/IPS",
+            logged_time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+            original_time=$.timestamp,
+            product=dict(
+              feature=dict(
+                name=$.event_type
+              ),
+              name="Suricata",
+              vendor_name="OISF"
+            ),
+            profiles=array(
+              "network"
+            ),
+            uid=to_str($.flow_id),
+            version="1.6.0"
+          ),
+          src_endpoint=dict(
+            ip=$.src_ip,
+            port=$.src_port
+          ),
+          status=case(
+            $['tls']['session_resumed'] == true => 'Success',
+            $['tls']['session_resumed'] == false => 'Success',
+            $['tls'] != null => 'Success',
+            _ => 'Unknown'
+          ),
+          status_detail=case(
+            $['tls']['session_resumed'] == true => "TLS session resumed",
+            $['tls']['session_resumed'] == false => "New TLS session established",
+            $['tls']['version'] != null => "TLS connection established",
+            _ => null
+          ),
+          status_id=case(
+            $['tls']['session_resumed'] == true => 1,
+            $['tls']['session_resumed'] == false => 1,
+            $['tls'] != null => 1,
+            _ => 0
+          ),
+          time=ts_str_to_epoch($.timestamp, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"),
+          timezone_offset=parse_int(substr($.timestamp, -5, 3)) * 60 + parse_int(substr($.timestamp, -2)),
+          tls=dict(
+            certificate=dict(
+              created_time=ts_str_to_epoch($['tls']['notbefore'], "yyyy-MM-dd'T'HH:mm:ss"),
+              expiration_time=ts_str_to_epoch($['tls']['notafter'], "yyyy-MM-dd'T'HH:mm:ss"),
+              fingerprints=array(
+                dict(
+                  algorithm="SHA-1",
+                  value=$['tls']['fingerprint']
+                )
+              ),
+              issuer=$['tls']['issuerdn'],
+              serial_number=$['tls']['serial'],
+              subject=$['tls']['subject']
+            ),
+            ja3_hash=dict(
+              algorithm="JA3",
+              value=$['tls']['ja3']['hash']
+            ),
+            ja3s_hash=dict(
+              algorithm="JA3S",
+              value=$['tls']['ja3s']['hash']
+            ),
+            sni=case(
+              $['tls']['sni'] != null => $['tls']['sni'],
+              _ => null
+            ),
+            version=case(
+              $['tls']['version'] != null => $['tls']['version'],
+              _ => null
+            )
+          ),
+          type_name='HTTP Activity: Post',
+          type_uid=400206,
+          unmapped=dict(
+            in_iface=$.in_iface,
+            pcap_cnt=$.pcap_cnt,
+            pkt_src=$.pkt_src
+          )
+        )
+    outputs:
+      - node_1765976039342
+    description: TLS eval
+nodePositions:
+  - id: node_1765877370141
+    commandName: kafkasource
+    x: 9811.340383432527
+    'y': 8368.200946279707
+  - id: node_1765877385940
+    commandName: filter
+    x: 9635.624675324663
+    'y': 9520.132467532474
+  - id: node_1765877399391
+    commandName: eval
+    x: 9612.958419943134
+    'y': 9723.650627528861
+  - id: node_1765972875555
+    x: 10093.088831168843
+    'y': 9522.063896103897
+    commandName: filter
+  - id: node_1765972916871
+    x: 9852.256363636372
+    'y': 9440.198961038963
+    commandName: filter
+  - id: node_1765974691380
+    x: 8423.977339409765
+    'y': 9132.331085380889
+    commandName: filter
+  - id: node_1765974700419
+    x: 8620.585859366915
+    'y': 9197.003774024894
+    commandName: filter
+  - id: node_1765974710894
+    x: 8816.209469256613
+    'y': 9258.642698722177
+    commandName: filter
+  - id: node_1765974721600
+    x: 9012.9953131824
+    'y': 9321.194328530097
+    commandName: filter
+  - id: node_1765974740876
+    x: 9215.55381432884
+    'y': 9389.023135102165
+    commandName: filter
+  - id: node_1765974777253
+    x: 9415.147957032976
+    'y': 9453.321919329
+    commandName: filter
+  - id: node_1765974791781
+    x: 8225.620448836522
+    'y': 9064.850097958537
+    commandName: filter
+  - id: node_1765974797976
+    x: 8031.384538151289
+    'y': 8997.87219772225
+    commandName: filter
+  - id: node_1765974815928
+    x: 7833.129953451881
+    'y': 8914.819601429253
+    commandName: filter
+  - id: node_1765974819982
+    x: 7636.214926757197
+    'y': 8831.76700513626
+    commandName: filter
+  - id: node_1765974869175
+    x: 7427.969607044293
+    'y': 8746.226526819648
+    commandName: filter
+  - id: node_1765974874111
+    x: 7213.591591571382
+    'y': 8669.838958087921
+    commandName: filter
+  - id: node_1765975012358
+    x: 7214.980316169756
+    'y': 8951.918384114239
+    commandName: eval
+  - id: node_1765975123723
+    x: 7431.43716394842
+    'y': 9069.650665888843
+    commandName: eval
+  - id: node_1765975706280
+    x: 10345.554571941948
+    'y': 9438.785533580913
+    commandName: filter
+  - id: node_1765975734250
+    x: 10541.599521322592
+    'y': 9370.555925695684
+    commandName: filter
+  - id: node_1765975739186
+    x: 10741.17103085305
+    'y': 9308.278291515966
+    commandName: filter
+  - id: node_1765975746282
+    x: 10936.496338053072
+    'y': 9243.169855782626
+    commandName: filter
+  - id: node_1765975751988
+    x: 11133.237046029906
+    'y': 9179.476820826098
+    commandName: filter
+  - id: node_1765975757696
+    x: 11327.146952453117
+    'y': 9117.19918664638
+    commandName: filter
+  - id: node_1765975762497
+    x: 11519.641458099515
+    'y': 9054.921552466662
+    commandName: filter
+  - id: node_1765975773344
+    x: 11709.30516219229
+    'y': 8992.643918286945
+    commandName: filter
+  - id: node_1765975777664
+    x: 11901.799667838688
+    'y': 8928.950883330417
+    commandName: filter
+  - id: node_1765975787857
+    x: 12095.398719396713
+    'y': 8866.628831021311
+    commandName: filter
+  - id: node_1765975999657
+    x: 12293.109865182056
+    'y': 8796.685242082023
+    commandName: filter
+  - id: node_1765976039342
+    x: 9853.502405546471
+    'y': 10265.473032131615
+    commandName: kafkasink
+  - id: node_1765976784092
+    x: 7640.47503240958
+    'y': 9180.941047421411
+    commandName: eval
+  - id: node_1765976825732
+    x: 7839.349338128355
+    'y': 9265.81097406573
+    commandName: eval
+  - id: node_1765976890004
+    x: 8036.95692852408
+    'y': 9357.014477325294
+    commandName: eval
+  - id: node_1765977084729
+    x: 8228.230942304557
+    'y': 9424.15038944692
+    commandName: eval
+  - id: node_1765977126697
+    x: 8428.37196334638
+    'y': 9493.819732214642
+    commandName: eval
+  - id: node_1765977202906
+    x: 8625.979553742105
+    'y': 9557.15549836712
+    commandName: eval
+  - id: node_1765977247525
+    x: 8826.12057478393
+    'y': 9624.291410488742
+    commandName: eval
+  - id: node_1765977319455
+    x: 9016.127873241358
+    'y': 9702.827760517814
+    commandName: eval
+  - id: node_1765977359919
+    x: 9212.468748314033
+    'y': 9768.696957316388
+    commandName: eval
+  - id: node_1765977397823
+    x: 9403.742762094509
+    'y': 9837.099584761063
+    commandName: eval
+  - id: node_1765977507321
+    x: 9853.426701777089
+    'y': 9652.139973682251
+    commandName: eval
+  - id: node_1765977543451
+    x: 10089.0357518643
+    'y': 9723.076031773024
+    commandName: eval
+  - id: node_1765977585335
+    x: 10336.045239858957
+    'y': 9821.879826970886
+    commandName: eval
+  - id: node_1765977619817
+    x: 10545.053268162128
+    'y': 9752.210484203162
+    commandName: eval
+  - id: node_1765977657501
+    x: 10741.394143234802
+    'y': 9685.07457208154
+    commandName: eval
+  - id: node_1765977695706
+    x: 10937.735018307478
+    'y': 9615.405229313816
+    commandName: eval
+  - id: node_1765977734080
+    x: 11131.542462734054
+    'y': 9543.202455899993
+    commandName: eval
+  - id: node_1765977800817
+    x: 11327.88333780673
+    'y': 9474.799828455318
+    commandName: eval
+  - id: node_1765977840490
+    x: 11520.424066910256
+    'y': 9410.197346979794
+    commandName: eval
+  - id: node_1765977913418
+    x: 11714.231511336833
+    'y': 9345.594865504268
+    commandName: eval
+  - id: node_1765977931659
+    x: 11913.105817055606
+    'y': 9280.992384028743
+    commandName: eval
+  - id: node_1765978018946
+    x: 12106.913261482183
+    'y': 9213.856471907118
+    commandName: eval
+  - id: node_1765978051139
+    x: 12304.520851877909
+    'y': 9142.920413816344
+    commandName: eval
